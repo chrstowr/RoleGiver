@@ -1,9 +1,10 @@
 import asyncio
 import discord
 import json
+from collections import deque
 from json import JSONDecodeError
 from pathlib import Path
-from RoleGiver.models.RASModels import RoleGiverSession, QueueItem, QueueAction
+from RoleGiver.models.RASModels import RoleGiverSession, QueueItem
 
 
 class RoleGiver:
@@ -16,7 +17,11 @@ class RoleGiver:
         self.TIMEOUT = 4
 
         self.ras_sessions = list()
-        # self.action_queue = deque()
+        # Holds queue action items to execute role adds or removals
+        self.action_queue = deque()
+        # Holds user id of users who were removed from a unique select RAS in order to
+        # prevent on_reaction_remove event from running two times
+        self.remove_tickets = deque()
 
     """#################################################
     create() - Routine that contains logic for the RAS (Reaction-based role Assignment System) create form.
@@ -69,6 +74,7 @@ class RoleGiver:
                     if response.channel_mentions[0] in ctx.message.guild.channels:
                         retry = False
                         new_ras_session.channel = response.channel_mentions[0]
+                        new_ras_session.guild = response.guild
                 else:
                     await ctx.send('Unable to verify channel')
 
@@ -150,13 +156,14 @@ class RoleGiver:
                         role = response.role_mentions[0]  # Get first role
                         # Check if role is valid
                         if role in ctx.message.guild.roles:
+                            # Check if that is being inserted already exists in session
                             result = [i for i in new_ras_session.options if i['role'] == role]
                             if len(result) < 1:
                                 try:
                                     # Try to add emote, if there is an exception, the emote is invalid
                                     await ras_preview_window.add_reaction(emote)
                                     # If add succeeds add to session model
-                                    new_ras_session.add_option(emote, role)
+                                    await new_ras_session.add_option(emote, role)
                                     # Update option list
                                     options_string = '(This will not display on final published RAS)\n'
                                     for item in new_ras_session.options:
@@ -251,8 +258,7 @@ class RoleGiver:
 
                     # Add published message context to tracking
                     new_ras_session.msg = published_context
-                    self.ras_sessions.append(new_ras_session)
-                    print(f'1: {new_ras_session.print()}')
+
                     # Add reactions to publish RAS
                     for option in new_ras_session.options:
                         await published_context.add_reaction(option['emote'])
@@ -272,6 +278,11 @@ class RoleGiver:
         except asyncio.TimeoutError:
             await self.timeout_embed(create_embed, create_ras_window, ras_preview_window)
             return self.TIMEOUT
+
+        # Save new RAS to memory
+        self.ras_sessions.append(new_ras_session)
+
+        print(f'Newly create RAS session: {new_ras_session.print()}')
 
         # Save session list to disk with new addition
         self.save_sessions_to_file()
@@ -300,35 +311,47 @@ class RoleGiver:
     Action functions - Handles all logic related to the action queue
     #################################################"""
 
-    async def add_role(self, reaction, user):
-        ras = [s for s in self.ras_sessions if reaction.message.id == s.msg.id][0]
-        role = discord.utils.find(lambda r: r == ras.find_role(reaction.emoji), reaction.message.guild.roles)
+    async def on_reaction_listener(self, payload):
+        user = self.bot.get_guild(payload.guild_id).get_member(payload.user_id)
+        message = await self.bot.get_channel(payload.channel_id).fetch_message(payload.message_id)
+        ras = discord.utils.find(lambda r: r.msg.id == message.id, self.ras_sessions)
+        emote = payload.emoji
+        action = payload.event_type
+        new_queue_item = QueueItem(user, message, ras, emote, action)
+        self.action_queue.append(new_queue_item)
 
-        if role is not None:
-            # If unique is false, that means that the RAS can hand out multiple roles
-            # If unique is true, that means that the RAS can hand out ONE role at a time
-            if ras.unique is False:
-                await user.add_roles(role)
-            elif ras.unique is True:
-                # Need to check if the user has another role from RAS
-                result = await ras.check_versus_roles(user.roles, role)
-                # If yes, remove them
-                if result is not None:
-                    for matching_option in result:
-                        await reaction.message.remove_reaction(matching_option['emote'], user)
+    async def action_queue_worker(self):
+        action = self.action_queue.popleft()
+        requested_role = action.ras.find_role(action.emote)
+        if action.type == 'REACTION_ADD':
+            if action.ras.unique is True:
+                # TODO: Fix awkward handling
+                # Check if there are any reactions activated that are not supposed to and remove them
+                for reaction in action.message.reactions:
+                    # Check if user is in reaction.user list
+                    async for user in reaction.users():
+                        if user.id == action.user.id:
+                            if reaction.emoji != action.emote.name:
+                                await action.message.remove_reaction(reaction.emoji, action.user)
+                                self.remove_tickets.append(action.user.id)
 
-                await user.add_roles(role)
+                # Check if user has roles from RAS that they are not supposed to
+                for ras_role in action.ras.options:
+                    result = discord.utils.find(lambda r: r.name == ras_role['role'], action.user.roles)
+                    if result is not None:
+                        await action.user.remove_roles(ras_role)
 
-    async def remove_role(self, reaction, user):
-        ras = [s for s in self.ras_sessions if reaction.message.id == s.msg.id][0]
-        role = discord.utils.find(lambda r: r == ras.find_role(reaction.emoji), reaction.message.guild.roles)
-        await user.remove_roles(role)
+                await action.user.add_roles(requested_role)
+            elif action.ras.unique is False:
+                await action.user.add_roles(requested_role)
+        elif action.type == 'REACTION_REMOVE':
+            await action.user.remove_roles(requested_role)
 
     #############################
     # Action helper functions   #
     #############################
-    def check_for_ras(self, message: discord.Message):
-        result = [m for m in self.ras_sessions if message.id == m.msg.id]
+    def check_if_ras(self, message_id):
+        result = [m for m in self.ras_sessions if message_id == m.msg.id]
         if len(result) > 0:
             return True
         else:
@@ -340,26 +363,43 @@ class RoleGiver:
 
     def save_sessions_to_file(self):
         try:
-            duel_data_file = Path("RoleGiver/data.json")
-            with open(duel_data_file, 'w') as f:
+            session_data_file = Path("RoleGiver/data.json")
+            with open(session_data_file, 'w') as f:
                 f.write(json.dumps(self.ras_sessions, indent=4, default=self.json_serialize_filter))
                 f.close()
         except JSONDecodeError as e:
             print(f'{JSONDecodeError}: {e}')
 
-    def load_sessions_from_file(self):
-        pass
+    async def load_sessions_from_file(self):
+        try:
+            session_data_file = Path("RoleGiver/data.json")
+            with open(session_data_file, 'r') as f:
+                data = json.load(f)
+                f.close()
+                self.ras_sessions = await self.convert_to_session_format(data)
+        except JSONDecodeError as e:
+            print(f'{JSONDecodeError}: {e}')
 
     # Helper - Take objects that are unserializable and format to serializable object
     @staticmethod
     def json_serialize_filter(obj):
         if isinstance(obj, RoleGiverSession):
-            return {'msg': obj.msg.id, 'channel': obj.channel.id, 'unique': obj.unique,
+            return {'msg': obj.msg.id, 'channel': obj.channel.id, 'guild': obj.guild.id, 'unique': obj.unique,
                     'options': obj.options, 'embed': obj.embed.to_dict()}
         elif isinstance(obj, discord.role.Role):
-            return obj.name
+            return obj.id
         else:
             raise TypeError("Type %s not serializable" % type(obj))
+
+    # Helper - converts the data received from JSON data file into the proper ras_session format
+    async def convert_to_session_format(self, data):
+        ras_session_format = list()
+        for item in data:
+            session_item = RoleGiverSession()
+            await session_item.convert_from_json(item, self.bot)
+            ras_session_format.append(session_item)
+
+        return ras_session_format
 
     """################################################
     Helper functions for both edit and create functions
@@ -424,3 +464,6 @@ class RoleGiver:
 
         # Replace create window with timeout embed
         await create_ras_window.edit(embed=embed)
+
+    def session_count(self):
+        return len(self.ras_sessions)

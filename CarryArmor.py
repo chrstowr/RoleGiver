@@ -11,9 +11,18 @@ TOKEN = os.getenv('DISCORD_TOKEN')
 
 # Set prefix for bot
 bot = commands.Bot(command_prefix='c!')
-
+# Role giver object
 role_giver = RoleGiver(bot)
 
+# TODO: Add backup system for JSON file
+# TODO: Add Option to make RAS with no roles
+
+async def action_queue_clock():
+    while True:
+        if len(role_giver.action_queue) > 0:
+            print(f'Q: {role_giver.action_queue}')
+            await role_giver.action_queue_worker()
+        await asyncio.sleep(.05)
 
 @bot.event
 async def on_ready():
@@ -22,6 +31,12 @@ async def on_ready():
     guilds = bot.guilds
     for g in guilds:
         print(f'{g.name} | (id: {g.id})')
+    print("Loading sessions from disk....")
+    await role_giver.load_sessions_from_file()
+    print(f'Number of sessions loaded: {role_giver.session_count()}')
+
+    print(f'Starting RAS Queue worker')
+    await bot.loop.create_task(action_queue_clock())
 
 
 @bot.event
@@ -39,23 +54,23 @@ async def on_message(message):
 
 
 @bot.event
-async def on_reaction_add(reaction, user):
-    if user == bot.user:
+async def on_raw_reaction_add(payload):
+    if payload.user_id == bot.user.id:
         return
 
     # On reaction add listener for role giver
-    if role_giver.check_for_ras(reaction.message) is True:
-        await role_giver.add_role(reaction, user)
+    if role_giver.check_if_ras(payload.message_id) is True:
+        await role_giver.on_reaction_listener(payload)
 
 
 @bot.event
-async def on_reaction_remove(reaction, user):
-    if user == bot.user:
+async def on_raw_reaction_remove(payload):
+    if payload.user_id == bot.user.id:
         return
 
     # On reaction remove listener for role giver
-    if role_giver.check_for_ras(reaction.message) is True:
-        await role_giver.remove_role(reaction, user)
+    if role_giver.check_if_ras(payload.message_id) is True:
+        await role_giver.on_reaction_listener(payload)
 
 
 # Role giver create command - Calls new RG create form
@@ -64,7 +79,7 @@ async def create(ctx, *args):
     # start routine to create role giving message
     # Check ADMIN rights?
     status = await role_giver.create(ctx)
-    print(f'Status: {status}')
+    print(f'Status of Create RAS session: {status}')
 
 
 # Role giver clean command - Cleans up all active RAS sessions, make sure they have emotes and state of
@@ -76,6 +91,14 @@ async def clean(ctx, *args):
     # channel - cleans all RAS in a channel
     # id - pass id of a message
     pass
+
+
+@bot.command(name='dumpsessions', help='')
+async def dumpsessions(ctx, *args):
+    data = role_giver.ras_sessions
+    print(f'Overall: {data}')
+    for i in data:
+        i.print()
 
 
 bot.run(TOKEN)

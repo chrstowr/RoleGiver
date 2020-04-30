@@ -1,1 +1,77 @@
-[]
+[
+    {
+        "msg": 705196576301121546,
+        "channel": 669593052578578436,
+        "guild": 669593052578578432,
+        "unique": false,
+        "options": [
+            {
+                "emote": "\ud83d\udcd8",
+                "role": 704146235170226236
+            }
+        ],
+        "embed": {
+            "footer": {
+                "text": "Unique=no"
+            },
+            "fields": [],
+            "type": "rich",
+            "description": "b",
+            "title": "a"
+        }
+    },
+    {
+        "msg": 705224718143193159,
+        "channel": 669593052578578436,
+        "guild": 669593052578578432,
+        "unique": true,
+        "options": [
+            {
+                "emote": "\ud83d\udfe5",
+                "role": 704411469365641377
+            },
+            {
+                "emote": "\ud83d\udfe9",
+                "role": 704146235170226236
+            }
+        ],
+        "embed": {
+            "footer": {
+                "text": "Unique=yes"
+            },
+            "fields": [],
+            "type": "rich",
+            "description": "with 2 options",
+            "title": "Unique"
+        }
+    },
+    {
+        "msg": 705238920916369441,
+        "channel": 669593052578578436,
+        "guild": 669593052578578432,
+        "unique": true,
+        "options": [
+            {
+                "emote": "\ud83d\udfe5",
+                "role": 704411469365641377
+            },
+            {
+                "emote": "\ud83d\udfe9",
+                "role": 704146235170226236
+            },
+            {
+                "emote": "\u2b1c",
+                "role": 704146146494513202
+            }
+        ],
+        "embed": {
+            "footer": {
+                "text": "Unique=yes"
+            },
+            "fields": [],
+            "type": "rich",
+            "description": "123",
+            "title": "3 options"
+        }
+    }
+]
