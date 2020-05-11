@@ -1,52 +1,70 @@
 import discord
+from time import perf_counter
 
 
 # This will contain all data modeling and functions needed to manipulate a RAS session object
 class RoleGiverSession:
 
     def __init__(self):
-        # The message id of the RAS id
-        self.msg = None
+        # The message id of the RAS in
+        self.message = None
         # The channel the RAS is in
         self.channel = None
         # the guild the RAS is in
         self.guild = None
         # Flag for whether the RAS session is only giving one role at a time
         self.unique = False
-        # [{'emote','role'}]
+        # emote = the emoji, users = the list of users who has reacted to this msg (CACHED FOR FASTER ACCESS)
+        # [{'emote':x,'role':y,'users':z}]
         # List that holds the options on the RAS
         self.options = list()
-        # Current state of the RAS embed
-        self.embed = None
 
     def print(self):
-        print(
-            f'[msg:{self.msg},channel:{self.channel},unique:{self.unique},options:{self.options},'
-            f'embed:{self.embed.to_dict()}')
+        # Todo: Convert user list to names for easier reading
+        print(f'[msg:{self.message},channel:{self.channel},unique:{self.unique},options:{self.options}]')
 
     async def add_option(self, emote, role):
-        self.options.append({'emote': emote, 'role': role})
+        self.options.append({'emote': emote, 'role': role, 'users': list()})
+
+    # Returns list of roles associated with this RAS
+    def role_list(self):
+        return [r['role'] for r in self.options]
 
     def find_role(self, emote):
-        matched_option = discord.utils.find(lambda o: o['emote'] == emote.name, self.options)
-        # matched_option = None
-        # for o in self.options:
-        #     if o['emote'] == emote:
-        #         matched_option = o
+        cleaned_emote = None
+
+        if type(emote) is str:
+            cleaned_emote = emote
+        else:
+            cleaned_emote = emote.name
+
+        matched_option = discord.utils.find(lambda o: o['emote'] == cleaned_emote, self.options)
 
         if matched_option is not None:
             return matched_option['role']
         else:
             return None
 
+    def cache_user_with_role(self, user, role):
+        option = discord.utils.find(lambda o: o['role'] == role, self.options)
+        if user not in option['users']:
+            option['users'].append(user)
+
+    def remove_user_from_cache_with_role(self, user, role):
+        option = discord.utils.find(lambda o: o['role'] == role, self.options)
+        if user in option['users']:
+            option['users'].remove(user)
+
     async def convert_from_json(self, data, bot):
         self.guild = discord.utils.get(bot.guilds, id=data['guild'])
         self.channel = discord.utils.get(self.guild.text_channels, id=data['channel'])
-        self.msg = await self.channel.fetch_message(data['msg'])
+        self.message = await self.channel.fetch_message(data['msg'])
         self.unique = data['unique']
         for option in data['options']:
-            self.options.append({'emote': option['emote'], 'role': self.guild.get_role(option['role'])})
-        self.embed = discord.Embed.from_dict(data['embed'])
+            reaction = discord.utils.find(lambda r: r.emoji == option['emote'], self.message.reactions)
+            self.options.append(
+                {'emote': option['emote'], 'role': self.guild.get_role(option['role']),
+                 'users': await reaction.users().flatten()})
 
     # Check what roles and reactions need to be cleaned before assigning new role
     async def clean_up_check(self, passed_user, requested_role, message):
@@ -63,7 +81,6 @@ class RoleGiverSession:
                     if user.id is passed_user.id:
                         if reaction.emoji != requested_emote:
                             remove_reaction_list.append(reaction.emoji)
-        print(f'react list: {remove_reaction_list}')
         # Check if user has roles from RAS that they are not supposed to
         for ras_role in self.options:
             result = discord.utils.find(lambda r: r.name == ras_role['role'], passed_user.roles)
@@ -83,10 +100,10 @@ class QueueItem:
 
     def __init__(self, user, msg, ras, emote, action):
         self.user = user  # user/member object of the user
-        self.message = msg  # message object of RAS
+        self.message_path = msg  # message object of RAS
         self.ras = ras
         self.emote = emote  # which emote
         self.type = action  # add or remove reaction
 
     def print(self):
-        print(f'{self.user}, {self.message},{self.ras} ,{self.emote}, {self.type}')
+        print(f'{self.user}, {self.message_path},{self.ras} ,{self.emote}, {self.type}')

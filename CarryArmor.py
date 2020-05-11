@@ -1,6 +1,6 @@
 import os
-import discord
 import asyncio
+from datetime import datetime
 
 from dotenv import load_dotenv
 from discord.ext import commands
@@ -14,15 +14,18 @@ bot = commands.Bot(command_prefix='c!')
 # Role giver object
 role_giver = RoleGiver(bot)
 
+
 # TODO: Add backup system for JSON file
 # TODO: Add Option to make RAS with no roles
 
 async def action_queue_clock():
     while True:
         if len(role_giver.action_queue) > 0:
-            print(f'Q: {role_giver.action_queue}')
             await role_giver.action_queue_worker()
-        await asyncio.sleep(.05)
+            await asyncio.sleep(.1)
+        else:
+            await asyncio.sleep(1)
+
 
 @bot.event
 async def on_ready():
@@ -31,9 +34,18 @@ async def on_ready():
     guilds = bot.guilds
     for g in guilds:
         print(f'{g.name} | (id: {g.id})')
+    print()
+
     print("Loading sessions from disk....")
     await role_giver.load_sessions_from_file()
-    print(f'Number of sessions loaded: {role_giver.session_count()}')
+
+    session_count = role_giver.session_count()
+    print(f'Number of sessions loaded: {session_count}\n')
+
+    if session_count > 0:
+        print('Validating RAS session states...')
+        await role_giver.validate_state()
+    print()
 
     print(f'Starting RAS Queue worker')
     await bot.loop.create_task(action_queue_clock())
@@ -41,8 +53,13 @@ async def on_ready():
 
 @bot.event
 async def on_disconnect():
-    print('Carry armor has disconnected from discord')
+    datetime_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    print(f'Carry armor has disconnected from discord - {datetime_now}')
 
+@bot.event
+async def on_connect():
+    datetime_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    print(f'Carry armor has connected with discord - {datetime_now}')
 
 @bot.event
 async def on_message(message):
@@ -61,7 +78,6 @@ async def on_raw_reaction_add(payload):
     # On reaction add listener for role giver
     if role_giver.check_if_ras(payload.message_id) is True:
         await role_giver.on_reaction_listener(payload)
-
 
 @bot.event
 async def on_raw_reaction_remove(payload):
@@ -82,23 +98,17 @@ async def create(ctx, *args):
     print(f'Status of Create RAS session: {status}')
 
 
-# Role giver clean command - Cleans up all active RAS sessions, make sure they have emotes and state of
-# users who are supposed to have reactions do have them
-@bot.command(name='clean', help='Runs a cleanup service that verifies all active RAS')
-async def clean(ctx, *args):
-    # Ideas:
-    # All - Cleans all RASs on list (WARNING: This could be resource intensive if there are alot of users and RAS)
-    # channel - cleans all RAS in a channel
-    # id - pass id of a message
-    pass
-
-
 @bot.command(name='dumpsessions', help='')
 async def dumpsessions(ctx, *args):
     data = role_giver.ras_sessions
     print(f'Overall: {data}')
     for i in data:
         i.print()
+
+
+@bot.command(name='ping', help='')
+async def ping(ctx, *args):
+    await ctx.send(f'Latency: {bot.latency * 1000:0.1f}ms')
 
 
 bot.run(TOKEN)
