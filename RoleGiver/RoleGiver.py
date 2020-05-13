@@ -1,3 +1,4 @@
+import os
 import asyncio
 import discord
 import json
@@ -487,7 +488,7 @@ class RoleGiver:
                 self.queue_time_sum = self.queue_time_sum + ((t2 - t1) * 1000)
                 print(
                     f'{action.user}({action.type}) -- Avg queue action throughput time({self.queue_count}): '
-                    f'{self.queue_time_sum / self.queue_count} | Unique::ADD action time: {(t2 - t1) * 1000}')
+                    f'{self.queue_time_sum / self.queue_count:0.2f} | Unique::ADD action time: {(t2 - t1) * 1000:0.2f}')
                 return
 
             elif action.ras.unique is False:
@@ -497,7 +498,7 @@ class RoleGiver:
                 self.queue_time_sum = self.queue_time_sum + ((t2 - t1) * 1000)
                 print(
                     f'{action.user}({action.type}) -- Avg queue action throughput time({self.queue_count}):'
-                    f' {self.queue_time_sum / self.queue_count} | Not Unique::ADD action time: {(t2 - t1) * 1000}')
+                    f' {self.queue_time_sum / self.queue_count:0.2f} | Not Unique::ADD action time: {(t2 - t1) * 1000:0.2f}')
                 return
         elif action.type == 'REACTION_REMOVE' and requested_role in action.user.roles:
             await action.user.remove_roles(requested_role)
@@ -506,7 +507,7 @@ class RoleGiver:
             self.queue_time_sum = self.queue_time_sum + ((t2 - t1) * 1000)
             print(
                 f'{action.user}({action.type}) -- Avg queue action throughput time({self.queue_count}):'
-                f' {self.queue_time_sum / self.queue_count} | REMOVE action time: {(t2 - t1) * 1000}')
+                f' {self.queue_time_sum / self.queue_count:0.2f} | REMOVE action time: {(t2 - t1) * 1000:0.2f}')
             return
 
     #############################
@@ -525,7 +526,9 @@ class RoleGiver:
 
     def save_sessions_to_file(self):
         try:
-            session_data_file = Path("RoleGiver/data.json")
+            directory = os.path.dirname(__file__)
+            file = os.path.join(directory, 'data.json')
+            session_data_file = Path(file)
             with open(session_data_file, 'w') as f:
                 f.write(json.dumps(self.ras_sessions, indent=4, default=self.json_serialize_filter))
                 f.close()
@@ -534,7 +537,9 @@ class RoleGiver:
 
     async def load_sessions_from_file(self):
         try:
-            session_data_file = Path("RoleGiver/data.json")
+            directory = os.path.dirname(__file__)
+            file = os.path.join(directory, 'data.json')
+            session_data_file = Path(file)
             with open(session_data_file, 'r') as f:
                 data = json.load(f)
                 f.close()

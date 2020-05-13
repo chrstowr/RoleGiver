@@ -66,34 +66,6 @@ class RoleGiverSession:
                 {'emote': option['emote'], 'role': self.guild.get_role(option['role']),
                  'users': await reaction.users().flatten()})
 
-    # Check what roles and reactions need to be cleaned before assigning new role
-    async def clean_up_check(self, passed_user, requested_role, message):
-        remove_role_list = list()
-        remove_reaction_list = list()
-        requested_emote = discord.utils.find(lambda r: requested_role.name == r['role'], self.options)['emote']
-
-        # Check if there are any reactions activated that are not supposed to
-        for reaction in message.reactions:
-            role = discord.utils.find(lambda r: reaction.emoji == r['emote'], self.options)['role']
-            if role is not None:
-                # Check if user is in reaction.user list
-                async for user in reaction.users():
-                    if user.id is passed_user.id:
-                        if reaction.emoji != requested_emote:
-                            remove_reaction_list.append(reaction.emoji)
-        # Check if user has roles from RAS that they are not supposed to
-        for ras_role in self.options:
-            result = discord.utils.find(lambda r: r.name == ras_role['role'], passed_user.roles)
-            print(result)
-            if result is not None:
-                remove_role_list.append(result)
-        # print(f'role list: {remove_role_list}')
-        if len(remove_reaction_list) > 0 or len(remove_role_list) > 0:
-            print([remove_reaction_list, remove_role_list])
-            return {'reactions': remove_reaction_list, 'roles': remove_role_list}
-        else:
-            return None
-
 
 # Used to hold queue items as they are processed
 class QueueItem:
