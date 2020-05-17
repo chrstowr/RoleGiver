@@ -129,8 +129,8 @@ class RoleGiver:
         # Change create RAS window
         create_embed.title = 'Create RAS - Step 3/?'
         create_embed.description = f'{ctx.message.author.name}, please list out the reaction/roles you would like to ' \
-                                   f'add: \n[:the_emote:]\' \'[@role]'
-        create_embed.set_field_at(0, name='Example:', value='`:warning: @spoiler_squad`',
+                                   f'add: \n[:the_emote:]\' \'[@role]. To delete a line type \'del [int]\''
+        create_embed.set_field_at(0, name='Example:', value='`:warning: @spoiler_squad`\n`del 1`',
                                   inline=False)
         create_embed.set_field_at(1, name='tip:', value='Type `cancel` at anytime to stop, `done` when you are done',
                                   inline=False)
@@ -141,11 +141,39 @@ class RoleGiver:
         # see message_check() in step 2
         try:
             retry = True
+            options_strings = ['(This will not display on final published RAS)\n']
             while retry is True:
                 response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
                 if self.word_check(response.content, 'cancel'):  # Check for 'cancel'
                     await self.cancel_embed(create_embed, create_ras_window, ras_preview_window)
                     return self.CANCEL
+                elif self.word_check(response.content, 'del'):
+                    # Get first argument after delete
+                    arg = response.content.strip(' ').split(' ')
+                    if len(arg) > 1:
+                        arg = arg[1].strip(' ')
+                        # Check if is int
+                        if self.is_int(arg) is True:
+                            delete_option = int(arg)
+                            if 0 < delete_option < len(options_strings):
+                                # Remove from option list
+                                option_to_remove = options_strings.pop(delete_option)
+                                # Remove from RAS
+                                await new_ras_session.remove_option(option_to_remove[0])
+                                # Remove reaction
+                                await ras_preview_window.remove_reaction(option_to_remove[0], self.bot.user)
+
+                                print(f'o_t_r: {options_strings}')
+                                print(f'{new_ras_session.options}')
+
+                                # update preview window
+                                option_text = self.option_text(options_strings)
+                                new_ras_session_embed.set_field_at(0,
+                                                                   name='\nCurrent options:',
+                                                                   value=option_text, inline=False)
+                                # Update option list in preview window
+                                await ras_preview_window.edit(embed=new_ras_session_embed)
+
                 elif self.word_check(response.content, 'done'):  # Check for 'done'
                     retry = False
 
@@ -170,18 +198,14 @@ class RoleGiver:
                                 try:
                                     # Try to add emote, if there is an exception, the emote is invalid
                                     await ras_preview_window.add_reaction(emote)
-                                    # If add succeeds add to session model
+                                    # If add reaction succeeds add to session model
                                     await new_ras_session.add_option(emote, role)
                                     # Update option list
-                                    options_string = '(This will not display on final published RAS)\n'
-                                    for item in new_ras_session.options:
-                                        emote = item['emote']
-                                        role = item['role']
-                                        options_string = options_string + f'{emote} - @{role}\n'
-
+                                    options_strings.append([emote, role])
+                                    option_text = self.option_text(options_strings)
                                     new_ras_session_embed.set_field_at(0,
                                                                        name='\nCurrent options:',
-                                                                       value=options_string, inline=False)
+                                                                       value=option_text, inline=False)
                                     # Update option list in preview window
                                     await ras_preview_window.edit(embed=new_ras_session_embed)
                                 except discord.HTTPException:
@@ -192,8 +216,28 @@ class RoleGiver:
                                 await ctx.send('ERROR: An option already exists with that role')
                         else:
                             await ctx.send('ERROR: Could not validate role')
-                    else:
-                        await ctx.send('ERROR: Invalid format detected, please look at example above.')
+                    # Assume you want to add action with no role attached
+                    elif len(response.role_mentions) < 1:
+                        emote = response.content.strip(' ')
+                        try:
+                            # Try to add emote, if there is an exception, the emote is invalid
+                            await ras_preview_window.add_reaction(emote)
+                            # If add reaction succeeds add to session model
+                            await new_ras_session.add_option(emote, None)
+                            # Update option list
+                            options_strings.append([emote, 'N/A'])
+                            option_text = self.option_text(options_strings)
+                            new_ras_session_embed.set_field_at(0,
+                                                               name='\nCurrent options:',
+                                                               value=option_text, inline=False)
+                            # Update option list in preview window
+                            await ras_preview_window.edit(embed=new_ras_session_embed)
+                        except discord.HTTPException:
+                            await ctx.send('ERROR: Emoji is invalid')
+                        except discord.DiscordException as e:
+                            print(e)
+                    # else:
+                    #     await ctx.send('ERROR: Invalid format detected, please look at example above.')
         except asyncio.TimeoutError:
             await self.timeout_embed(create_embed, create_ras_window, ras_preview_window)
             return self.TIMEOUT
@@ -300,7 +344,22 @@ class RoleGiver:
     # create() helpers #
     ####################
 
-    # None
+    @staticmethod
+    def option_text(options):
+        if len(options) == 1:
+            return options[0]
+        else:
+            option_text = options[0]
+            count = 1
+            while count < len(options):
+                # Check if the role text is 'N/A' for slightly different formatting
+                if options[count][1] == 'N/A':
+                    option_text = option_text + f'{count}:  {options[count][0]} - [{options[count][1]}]\n'
+                else:
+                    option_text = option_text + f'{count}:  {options[count][0]} - @{options[count][1]}\n'
+
+                count = count + 1
+            return option_text
 
     """#################################################
        edit() - Routine that contains logic for the RAS (Reaction-based role Assignment System) edit form.
@@ -383,7 +442,7 @@ class RoleGiver:
                                 roles_to_remove.append(role)
 
                         # Make sure user has the role
-                        if requested_role not in user.roles:
+                        if requested_role not in user.roles and requested_role is not None:
                             ras.cache_user_with_role(user, requested_role)
                             await user.add_roles(requested_role)
 
@@ -410,23 +469,24 @@ class RoleGiver:
                     users = await reaction.users().flatten()
                     # Role associated with reaction
                     role = ras.find_role(reaction.emoji)
-                    # Get users in guild who currently have the role
-                    members_with_role = [u for u in ras.message.guild.members if role in u.roles]
-                    # Validate each user on user list has role
-                    for user in users:
-                        # Cross check if user has role
-                        result = discord.utils.find(lambda m: user == m, members_with_role)
-                        if result is None and user != self.bot.user:
-                            ras.cache_user_with_role(user, role)
-                            await user.add_roles(role)
-                        elif result is not None and user != self.bot.user:
-                            members_with_role.remove(user)
+                    if role is not None:
+                        # Get users in guild who currently have the role
+                        members_with_role = [u for u in ras.message.guild.members if role in u.roles]
+                        # Validate each user on user list has role
+                        for user in users:
+                            # Cross check if user has role
+                            result = discord.utils.find(lambda m: user == m, members_with_role)
+                            if result is None and user != self.bot.user and role is not None:
+                                ras.cache_user_with_role(user, role)
+                                await user.add_roles(role)
+                            elif result is not None and user != self.bot.user:
+                                members_with_role.remove(user)
 
-                    # The remaining members on members_with_role will have role removed
-                    for member in members_with_role:
-                        if member != self.bot:
-                            ras.remove_user_from_cache_with_role(member, role)
-                            await member.remove_roles(role)
+                        # The remaining members on members_with_role will have role removed
+                        for member in members_with_role:
+                            if member != self.bot:
+                                ras.remove_user_from_cache_with_role(member, role)
+                                await member.remove_roles(role)
 
             progress_tracker = progress_tracker + 1
             print(f'Progress: ({progress_tracker}/{ras_count})...')
@@ -436,15 +496,18 @@ class RoleGiver:
     #################################################"""
 
     async def on_reaction_listener(self, payload):
-        user = self.bot.get_guild(payload.guild_id).get_member(payload.user_id)
-        message_path = {'guild_id': payload.guild_id, 'channel_id': payload.channel_id,
-                        'message_id': payload.message_id}
-        # await self.bot.get_channel(payload.channel_id).fetch_message(payload.message_id)
         ras = discord.utils.find(lambda r: r.message.id == payload.message_id, self.ras_sessions)
-        emote = payload.emoji
-        action = payload.event_type
-        new_queue_item = QueueItem(user, message_path, ras, emote, action)
-        self.action_queue.append(new_queue_item)
+        requested_role = ras.find_role(payload.emoji)
+        role_is_null_ras_is_unique = requested_role is None and ras.unique is True
+        role_is_not_null = requested_role is not None
+        if role_is_null_ras_is_unique is True or role_is_not_null:
+            user = self.bot.get_guild(payload.guild_id).get_member(payload.user_id)
+            message_path = {'guild_id': payload.guild_id, 'channel_id': payload.channel_id,
+                            'message_id': payload.message_id}
+            emote = payload.emoji
+            action = payload.event_type
+            new_queue_item = QueueItem(user, message_path, ras, emote, action)
+            self.action_queue.append(new_queue_item)
 
     async def action_queue_worker(self):
         t1 = perf_counter()
@@ -480,7 +543,7 @@ class RoleGiver:
                     if reaction['emote'] != action.emote.name:
                         await message.remove_reaction(reaction['emote'], action.user)
                 # 6: Make sure user has the role
-                if requested_role not in action.user.roles:
+                if requested_role not in action.user.roles and requested_role is not None:
                     action.ras.cache_user_with_role(action.user, requested_role)
                     await action.user.add_roles(requested_role)
                 t2 = perf_counter()
@@ -491,7 +554,7 @@ class RoleGiver:
                     f'{self.queue_time_sum / self.queue_count:0.2f} | Unique::ADD action time: {(t2 - t1) * 1000:0.2f}')
                 return
 
-            elif action.ras.unique is False:
+            elif action.ras.unique is False and requested_role is not None:
                 await action.user.add_roles(requested_role)
                 t2 = perf_counter()
                 self.queue_count = self.queue_count + 1
@@ -552,7 +615,8 @@ class RoleGiver:
     def json_serialize_filter(obj):
         if isinstance(obj, RoleGiverSession):
             # clear user list before saving
-            obj.options['users'] = []
+            for op in obj.options:
+                op['users'].clear()
             return {'msg': obj.message.id, 'channel': obj.channel.id, 'guild': obj.guild.id, 'unique': obj.unique,
                     'options': obj.options}
         elif isinstance(obj, discord.role.Role):
@@ -636,3 +700,11 @@ class RoleGiver:
 
     def session_count(self):
         return len(self.ras_sessions)
+
+    @staticmethod
+    def is_int(value):
+        try:
+            int(value)
+            return True
+        except:
+            return False

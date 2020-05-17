@@ -1,61 +1,45 @@
 [
     {
-        "msg": 705898007526375516,
-        "channel": 704146455522181210,
+        "msg": 711412395716640831,
+        "channel": 669593052578578436,
         "guild": 669593052578578432,
         "unique": false,
         "options": [
             {
-                "emote": "\ud83d\udfe0",
+                "emote": "\u26a0\ufe0f",
+                "role": null,
+                "users": []
+            },
+            {
+                "emote": "\ud83d\udfe7",
                 "role": 705894893633142888,
                 "users": []
             }
         ]
     },
     {
-        "msg": 705898616446910464,
-        "channel": 704146455522181210,
+        "msg": 711586246069190698,
+        "channel": 669593052578578436,
         "guild": 669593052578578432,
-        "unique": false,
+        "unique": true,
         "options": [
             {
-                "emote": "\ud83d\udfe5",
-                "role": 704411469365641377,
-                "users": []
-            },
-            {
                 "emote": "\ud83d\udfe9",
-                "role": 704146235170226236,
+                "role": null,
                 "users": []
             },
             {
-                "emote": "\ud83d\udfe6",
-                "role": 705895232226590720,
+                "emote": "\ud83d\udfe5",
+                "role": 705895131051720725,
                 "users": []
             }
         ]
     },
     {
-        "msg": 705899387225636865,
-        "channel": 704146455522181210,
+        "msg": 711607231182798868,
+        "channel": 669593052578578436,
         "guild": 669593052578578432,
-        "unique": true,
-        "options": [
-            {
-                "emote": "\ud83c\udf4e",
-                "role": 705895131051720725,
-                "users": []
-            },
-            {
-                "emote": "\ud83c\udf51",
-                "role": 705895301625675857,
-                "users": []
-            },
-            {
-                "emote": "\u2744\ufe0f",
-                "role": 705898844109668360,
-                "users": []
-            }
-        ]
+        "unique": false,
+        "options": []
     }
 ]
