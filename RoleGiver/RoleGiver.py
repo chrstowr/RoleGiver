@@ -2,6 +2,7 @@ import os
 import asyncio
 import discord
 import json
+import re
 from time import perf_counter
 from collections import deque
 from json import JSONDecodeError
@@ -39,6 +40,7 @@ class RoleGiver:
         ras_preview_window = None
         new_ras_session = RoleGiverSession()
         new_ras_session_embed = discord.Embed()
+        new_ras_session_embed.colour = discord.Colour.default()
 
         # Make CREATE_RAS message embed, add needed fields
         create_ras_window = None
@@ -282,13 +284,60 @@ class RoleGiver:
         """############################################
         # Color
         ############################################"""
-        color = None
+        # Change create RAS window
+        create_embed.title = 'Create RAS - Step 6/?'
+        create_embed.description = f'{ctx.message.author.name}, please choose the color you want to associate with ' \
+                                   f'this RAS in this format `[0-255],[0-255],[0-255]` See tip for example.'
+        create_embed.set_field_at(0, name='Example:', value='`255,255,255`',
+                                  inline=False)
+        create_embed.set_field_at(1, name='tip:', value='Type `cancel` at anytime to stop, `done` when you are done',
+                                  inline=False)
+        current_color = new_ras_session_embed.colour
+        new_ras_session_embed.add_field(name='Current color:',
+                                        value=f'{current_color.to_rgb()}', inline=False)
+
+        await create_ras_window.edit(embed=create_embed)
+        await ras_preview_window.edit(embed=new_ras_session_embed)
+
+        # Wait for response from author
+        # see message_check() in step 2
+        try:
+            retry = True
+            while retry is True:
+                response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
+                if self.word_check(response.content, 'cancel'):  # Check for 'cancel'
+                    await self.cancel_embed(create_embed, create_ras_window, ras_preview_window)
+                    return self.CANCEL
+                elif self.word_check(response.content, 'done'):  # Check for 'done'
+                    retry = False
+
+                    # Change create window tip back to basic message
+                    create_embed.set_field_at(1, name='tip:',
+                                              value='Type `cancel` at anytime to stop', inline=False)
+                    # Remove preview of options from RAS preview
+                    new_ras_session_embed.remove_field(0)
+                    # Update preview window
+                    await ras_preview_window.edit(embed=new_ras_session_embed)
+                else:
+                    new_color = self.color_atlas(response)
+                    print(new_color)
+                    if new_color is not None:
+                        new_ras_session_embed.colour = new_color
+
+                        new_ras_session_embed.set_field_at(0,
+                                                           name='\nCurrent color:',
+                                                           value=new_color.to_rgb(), inline=False)
+                        await ras_preview_window.edit(embed=new_ras_session_embed)
+
+        except asyncio.TimeoutError:
+            await self.timeout_embed(create_embed, create_ras_window, ras_preview_window)
+            return self.TIMEOUT
 
         """############################################
         # Publish
         ############################################"""
         # Change create RAS window
-        create_embed.title = 'Create RAS - Step 6/?'
+        create_embed.title = 'Create RAS - Step 7/?'
         create_embed.description = f'{ctx.message.author.name},please confirm the preview below, then type `publish` ' \
                                    f'or `cancel`'
         create_embed.clear_fields()
@@ -317,7 +366,7 @@ class RoleGiver:
 
                     # Delete preview window
                     await ras_preview_window.delete()
-
+                    # TODO: Add list of what options are in confirmation
                     # Update create RAS form with confirmation
                     create_embed.title = 'Create RAS  -  :white_check_mark:'
                     create_embed.description = f'CONFIRMATION - The new RAS has been posted in ' \
@@ -528,20 +577,24 @@ class RoleGiver:
                 reaction_list = list()
                 for reaction in action.ras.options:
                     # Check if user is in reaction.user list
-                    t9 = perf_counter()
                     users = reaction['users']
-                    t10 = perf_counter()
                     if action.user in users:
                         reaction_list.append(reaction)
                 # 4: Compile list of roles that need to be removed
+                t4 = perf_counter()
                 for role in ras_roles:
                     if role in action.user.roles and role is not requested_role:
                         action.ras.remove_user_from_cache_with_role(action.user, role)
                         await action.user.remove_roles(role)
+                t5 = perf_counter()
+                print(f'Checking roles: {(t5-t4)*1000:0.2f}')
                 # 5: Iterate thru list of reactions that need to be removed
+                t6 = perf_counter()
                 for reaction in reaction_list:
                     if reaction['emote'] != action.emote.name:
                         await message.remove_reaction(reaction['emote'], action.user)
+                t7 = perf_counter()
+                print(f'Removing reactions: {(t7-t6)*1000:0.2f}')
                 # 6: Make sure user has the role
                 if requested_role not in action.user.roles and requested_role is not None:
                     action.ras.cache_user_with_role(action.user, requested_role)
@@ -708,3 +761,22 @@ class RoleGiver:
             return True
         except:
             return False
+
+    def color_atlas(self, requested_color):
+        exploded_color_str = requested_color.content.split(',')
+
+        # Make sure three characters were passed
+        if len(exploded_color_str) == 3:
+            # Make sure all three are ints, and they are between 0 and 255
+            for item in exploded_color_str:
+                if self.is_int(item) is False:
+                    return None
+                else:
+                    if 0 > int(item) > 255:
+                        return None
+            r = int(exploded_color_str[0])
+            g = int(exploded_color_str[1])
+            b = int(exploded_color_str[2])
+            return discord.Colour.from_rgb(r, g, b)
+        else:
+            return None
