@@ -583,22 +583,25 @@ class RoleGiver:
                 # 4: Compile list of roles that need to be removed
                 t4 = perf_counter()
                 for role in ras_roles:
-                    if role in action.user.roles and role is not requested_role:
-                        action.ras.remove_user_from_cache_with_role(action.user, role)
+                    if role is not None and role is not requested_role and role in action.user.roles:
+                        action.ras.release_from_cache(action.user, role, action.emote.name)
                         await action.user.remove_roles(role)
                 t5 = perf_counter()
-                print(f'Checking roles: {(t5-t4)*1000:0.2f}')
+                # print(f'Checking roles: {(t5-t4)*1000:0.2f}')
                 # 5: Iterate thru list of reactions that need to be removed
                 t6 = perf_counter()
                 for reaction in reaction_list:
                     if reaction['emote'] != action.emote.name:
+                        action.ras.release_from_cache(action.user, requested_role, reaction['emote'])
                         await message.remove_reaction(reaction['emote'], action.user)
                 t7 = perf_counter()
-                print(f'Removing reactions: {(t7-t6)*1000:0.2f}')
+                # print(f'Removing reactions: {(t7-t6)*1000:0.2f}')
                 # 6: Make sure user has the role
-                if requested_role not in action.user.roles and requested_role is not None:
-                    action.ras.cache_user_with_role(action.user, requested_role)
-                    await action.user.add_roles(requested_role)
+                if requested_role not in action.user.roles:
+                    action.ras.cache_user(action.user, requested_role, action.emote.name)
+                    if requested_role is not None:
+                        await action.user.add_roles(requested_role)
+
                 t2 = perf_counter()
                 self.queue_count = self.queue_count + 1
                 self.queue_time_sum = self.queue_time_sum + ((t2 - t1) * 1000)
