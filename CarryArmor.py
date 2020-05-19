@@ -16,13 +16,11 @@ role_giver = RoleGiver(bot)
 
 
 # TODO: Add backup system for JSON file
-# TODO: Add Option to make RAS with no roles
 
 async def action_queue_clock():
     while True:
         if len(role_giver.action_queue) > 0:
             await role_giver.action_queue_worker()
-            await asyncio.sleep(.1)
         else:
             await asyncio.sleep(1)
 

@@ -320,7 +320,6 @@ class RoleGiver:
                     await ras_preview_window.edit(embed=new_ras_session_embed)
                 else:
                     new_color = self.color_atlas(response)
-                    print(new_color)
                     if new_color is not None:
                         new_ras_session_embed.colour = new_color
 
@@ -598,7 +597,7 @@ class RoleGiver:
                 # print(f'Removing reactions: {(t7-t6)*1000:0.2f}')
                 # 6: Make sure user has the role
                 if requested_role not in action.user.roles:
-                    action.ras.cache_user(action.user, requested_role, action.emote.name)
+                    await action.ras.cache_user(action.user, requested_role, action.emote)
                     if requested_role is not None:
                         await action.user.add_roles(requested_role)
 
@@ -611,6 +610,7 @@ class RoleGiver:
                 return
 
             elif action.ras.unique is False and requested_role is not None:
+                await action.ras.cache_user(action.user, requested_role, action.emote)
                 await action.user.add_roles(requested_role)
                 t2 = perf_counter()
                 self.queue_count = self.queue_count + 1
@@ -620,6 +620,7 @@ class RoleGiver:
                     f' {self.queue_time_sum / self.queue_count:0.2f} | Not Unique::ADD action time: {(t2 - t1) * 1000:0.2f}')
                 return
         elif action.type == 'REACTION_REMOVE' and requested_role in action.user.roles:
+            action.ras.release_from_cache(action.user, requested_role, action.emote)
             await action.user.remove_roles(requested_role)
             t2 = perf_counter()
             self.queue_count = self.queue_count + 1

@@ -49,29 +49,30 @@ class RoleGiverSession:
         else:
             return None
 
-    def cache_user(self, user, role, emote):
+    async def cache_user(self, user, role, emote):
         # Search by emote
         if role is None:
-            option = discord.utils.find(lambda o: o['emote'] == emote, self.options)
-            if user not in option['users']:
-                option['users'].append(user)
+            option = discord.utils.find(lambda o: o['emote'] == emote.name, self.options)
         # Search by role
         else:
             option = discord.utils.find(lambda o: o['role'] == role, self.options)
+
+        if option is not None:
             if user not in option['users']:
                 option['users'].append(user)
+        else:
+            await self.message.remove_reaction(emote, user)
 
     def release_from_cache(self, user, role, emote):
         # Search by emote
         if role is None:
             option = discord.utils.find(lambda o: o['emote'] == emote, self.options)
-            if user in option['users']:
-                option['users'].remove(user)
         # Search by role
         else:
             option = discord.utils.find(lambda o: o['role'] == role, self.options)
-            if user in option['users']:
-                option['users'].remove(user)
+
+        if user in option['users']:
+            option['users'].remove(user)
 
     def cache_user_with_role(self, user, role):
         option = discord.utils.find(lambda o: o['role'] == role, self.options)
