@@ -546,16 +546,22 @@ class RoleGiver:
     async def on_reaction_listener(self, payload):
         ras = discord.utils.find(lambda r: r.message.id == payload.message_id, self.ras_sessions)
         requested_role = ras.find_role(payload.emoji)
-        role_is_null_ras_is_unique = requested_role is None and ras.unique is True
-        role_is_not_null = requested_role is not None
-        if role_is_null_ras_is_unique is True or role_is_not_null:
-            user = self.bot.get_guild(payload.guild_id).get_member(payload.user_id)
-            message_path = {'guild_id': payload.guild_id, 'channel_id': payload.channel_id,
-                            'message_id': payload.message_id}
-            emote = payload.emoji
-            action = payload.event_type
-            new_queue_item = QueueItem(user, message_path, ras, emote, action)
-            self.action_queue.append(new_queue_item)
+
+        check_if_reaction_exists = discord.utils.find(lambda r: r['emote'] == payload.emoji.name, ras.options)
+
+        user = self.bot.get_guild(payload.guild_id).get_member(payload.user_id)
+        if check_if_reaction_exists is not None:
+            role_is_null_ras_is_unique = requested_role is None and ras.unique is True
+            role_is_not_null = requested_role is not None
+            if role_is_null_ras_is_unique is True or role_is_not_null:
+                message_path = {'guild_id': payload.guild_id, 'channel_id': payload.channel_id,
+                                'message_id': payload.message_id}
+                emote = payload.emoji
+                action = payload.event_type
+                new_queue_item = QueueItem(user, message_path, ras, emote, action)
+                self.action_queue.append(new_queue_item)
+        else:
+            await ras.message.remove_reaction(payload.emoji, user)
 
     async def action_queue_worker(self):
         t1 = perf_counter()
@@ -610,7 +616,6 @@ class RoleGiver:
                 return
 
             elif action.ras.unique is False and requested_role is not None:
-                await action.ras.cache_user(action.user, requested_role, action.emote)
                 await action.user.add_roles(requested_role)
                 t2 = perf_counter()
                 self.queue_count = self.queue_count + 1
@@ -620,7 +625,6 @@ class RoleGiver:
                     f' {self.queue_time_sum / self.queue_count:0.2f} | Not Unique::ADD action time: {(t2 - t1) * 1000:0.2f}')
                 return
         elif action.type == 'REACTION_REMOVE' and requested_role in action.user.roles:
-            action.ras.release_from_cache(action.user, requested_role, action.emote)
             await action.user.remove_roles(requested_role)
             t2 = perf_counter()
             self.queue_count = self.queue_count + 1

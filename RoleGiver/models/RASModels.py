@@ -60,8 +60,6 @@ class RoleGiverSession:
         if option is not None:
             if user not in option['users']:
                 option['users'].append(user)
-        else:
-            await self.message.remove_reaction(emote, user)
 
     def release_from_cache(self, user, role, emote):
         # Search by emote

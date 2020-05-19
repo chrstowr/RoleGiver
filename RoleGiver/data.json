@@ -97,5 +97,28 @@
                 "users": []
             }
         ]
+    },
+    {
+        "msg": 712364980330299426,
+        "channel": 669593052578578436,
+        "guild": 669593052578578432,
+        "unique": false,
+        "options": [
+            {
+                "emote": "\ud83d\udfe5",
+                "role": null,
+                "users": []
+            },
+            {
+                "emote": "\ud83d\udfe9",
+                "role": null,
+                "users": []
+            },
+            {
+                "emote": "\u2b1c",
+                "role": null,
+                "users": []
+            }
+        ]
     }
 ]
