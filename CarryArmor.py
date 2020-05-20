@@ -46,8 +46,9 @@ async def on_ready():
         await role_giver.validate_state()
     print()
 
-    print(f'Starting RAS Queue worker')
+    print(f'Starting RAS Queue worker...')
     await bot.loop.create_task(action_queue_clock())
+    print(f'Ready to go!')
 
 
 @bot.event
@@ -110,7 +111,7 @@ async def edit(ctx, *args):
     # Check if user calling edit is calling id in current guild
     if len(args) == 1:
         matching_ras = discord.utils.find(lambda m: str(m.message.id) == args[0]
-                                              and ctx.guild.id == m.guild.id, role_giver.ras_sessions)
+                                                    and ctx.guild.id == m.guild.id, role_giver.ras_sessions)
         if matching_ras is not None:
             status = await role_giver.edit(ctx, matching_ras)
             print(f'Status of edit RAS session: {status}')
