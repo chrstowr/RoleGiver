@@ -1,7 +1,8 @@
 import os
 import asyncio
-from datetime import datetime
+import discord
 
+from datetime import datetime
 from dotenv import load_dotenv
 from discord.ext import commands
 from RoleGiver.RoleGiver import RoleGiver
@@ -54,10 +55,12 @@ async def on_disconnect():
     datetime_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     print(f'Carry armor has disconnected from discord - {datetime_now}')
 
+
 @bot.event
 async def on_connect():
     datetime_now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     print(f'Carry armor has connected with discord - {datetime_now}')
+
 
 @bot.event
 async def on_message(message):
@@ -77,6 +80,7 @@ async def on_raw_reaction_add(payload):
     if role_giver.check_if_ras(payload.message_id) is True:
         await role_giver.on_reaction_listener(payload)
 
+
 @bot.event
 async def on_raw_reaction_remove(payload):
     if payload.user_id == bot.user.id:
@@ -94,6 +98,22 @@ async def create(ctx, *args):
     # Check ADMIN rights?
     status = await role_giver.create(ctx)
     print(f'Status of Create RAS session: {status}')
+
+
+# Role giver edit command - Calls RG edit form
+@bot.command(name='edit', help='Edit existing ras session')
+async def edit(ctx, *args):
+    # start routine to edit ras session
+    # Check ADMIN rights?
+
+    # Check if arg passed is valid msg id
+    # Check if user calling edit is calling id in current guild
+    if len(args) == 1:
+        matching_ras = discord.utils.find(lambda m: str(m.message.id) == args[0]
+                                              and ctx.guild.id == m.guild.id, role_giver.ras_sessions)
+        if matching_ras is not None:
+            status = await role_giver.edit(ctx, matching_ras)
+            print(f'Status of edit RAS session: {status}')
 
 
 @bot.command(name='dumpsessions', help='')

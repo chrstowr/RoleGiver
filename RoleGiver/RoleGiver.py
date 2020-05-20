@@ -76,7 +76,10 @@ class RoleGiver:
             while retry is True:
                 response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
                 if self.word_check(response.content, 'cancel'):
-                    await self.cancel_embed(create_embed, create_ras_window, ras_preview_window)
+                    await self.cancel_embed(create_embed, create_ras_window, ras_preview_window,
+                                            title='Create RAS :warning:',
+                                            text='This create RAS sessions was cancelled, use the create command'
+                                                 ' again to start another session.')
                     return self.CANCEL
                 elif len(response.channel_mentions) > 0:
                     if response.channel_mentions[0] in ctx.message.guild.channels:
@@ -87,7 +90,11 @@ class RoleGiver:
                     await ctx.send('Unable to verify channel')
 
         except asyncio.TimeoutError:
-            await self.timeout_embed(create_embed, create_ras_window, ras_preview_window)
+
+            await self.timeout_embed(create_embed, create_ras_window, ras_preview_window,
+                                     title='Create RAS :octagonal_sign:',
+                                     text='This Create RAS session has timed out, please use the \'c!create\' command '
+                                          'again ')
             return self.TIMEOUT
 
         """###################################
@@ -110,7 +117,10 @@ class RoleGiver:
             while retry is True:
                 response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
                 if self.word_check(response.content, 'cancel'):
-                    await self.cancel_embed(create_embed, create_ras_window, ras_preview_window)
+                    await self.cancel_embed(create_embed, create_ras_window, ras_preview_window,
+                                            title='Create RAS :warning:',
+                                            text='This create RAS sessions was cancelled, use the create command'
+                                                 ' again to start another session.')
                     return self.CANCEL
                 elif self.verify_title_desc(response.content):
                     retry = False
@@ -122,7 +132,10 @@ class RoleGiver:
                     await ctx.send('Invalid format detected, please look at example above.')
 
         except asyncio.TimeoutError:
-            await self.timeout_embed(create_embed, create_ras_window, ras_preview_window)
+            await self.timeout_embed(create_embed, create_ras_window, ras_preview_window,
+                                     title='Create RAS :octagonal_sign:',
+                                     text='This Create RAS session has timed out, please use the \'c!create\' command '
+                                          'again ')
             return self.TIMEOUT
 
         """###################################
@@ -147,7 +160,10 @@ class RoleGiver:
             while retry is True:
                 response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
                 if self.word_check(response.content, 'cancel'):  # Check for 'cancel'
-                    await self.cancel_embed(create_embed, create_ras_window, ras_preview_window)
+                    await self.cancel_embed(create_embed, create_ras_window, ras_preview_window,
+                                            title='Create RAS :warning:',
+                                            text='This create RAS sessions was cancelled, use the create command'
+                                                 ' again to start another session.')
                     return self.CANCEL
                 elif self.word_check(response.content, 'del'):
                     # Get first argument after delete
@@ -241,7 +257,10 @@ class RoleGiver:
                     # else:
                     #     await ctx.send('ERROR: Invalid format detected, please look at example above.')
         except asyncio.TimeoutError:
-            await self.timeout_embed(create_embed, create_ras_window, ras_preview_window)
+            await self.timeout_embed(create_embed, create_ras_window, ras_preview_window,
+                                     title='Create RAS :octagonal_sign:',
+                                     text='This Create RAS session has timed out, please use the \'c!create\' command '
+                                          'again ')
             return self.TIMEOUT
 
         """############################################
@@ -263,7 +282,10 @@ class RoleGiver:
             while retry is True:
                 response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
                 if self.word_check(response.content, 'cancel'):
-                    await self.cancel_embed(create_embed, create_ras_window, ras_preview_window)
+                    await self.cancel_embed(create_embed, create_ras_window, ras_preview_window,
+                                            title='Create RAS :warning:',
+                                            text='This create RAS sessions was cancelled, use the create command'
+                                                 ' again to start another session.')
                     return self.CANCEL
                 elif self.word_check(response.content, 'yes') or self.word_check(response.content, 'no'):
                     retry = False
@@ -278,7 +300,10 @@ class RoleGiver:
                     await ctx.send('Invalid format detected, please look at example above.')
 
         except asyncio.TimeoutError:
-            await self.timeout_embed(create_embed, create_ras_window, ras_preview_window)
+            await self.timeout_embed(create_embed, create_ras_window, ras_preview_window,
+                                     title='Create RAS :octagonal_sign:',
+                                     text='This Create RAS session has timed out, please use the \'c!create\' command '
+                                          'again ')
             return self.TIMEOUT
 
         """############################################
@@ -306,7 +331,10 @@ class RoleGiver:
             while retry is True:
                 response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
                 if self.word_check(response.content, 'cancel'):  # Check for 'cancel'
-                    await self.cancel_embed(create_embed, create_ras_window, ras_preview_window)
+                    await self.cancel_embed(create_embed, create_ras_window, ras_preview_window,
+                                            title='Create RAS :warning:',
+                                            text='This create RAS sessions was cancelled, use the create command'
+                                                 ' again to start another session.')
                     return self.CANCEL
                 elif self.word_check(response.content, 'done'):  # Check for 'done'
                     retry = False
@@ -329,7 +357,10 @@ class RoleGiver:
                         await ras_preview_window.edit(embed=new_ras_session_embed)
 
         except asyncio.TimeoutError:
-            await self.timeout_embed(create_embed, create_ras_window, ras_preview_window)
+            await self.timeout_embed(create_embed, create_ras_window, ras_preview_window,
+                                     title='Create RAS :octagonal_sign:',
+                                     text='This Create RAS session has timed out, please use the \'c!create\' command '
+                                          'again ')
             return self.TIMEOUT
 
         """############################################
@@ -349,7 +380,10 @@ class RoleGiver:
             while retry is True:
                 response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
                 if self.word_check(response.content, 'cancel'):  # Listen for 'cancel'
-                    await self.cancel_embed(create_embed, create_ras_window, ras_preview_window)
+                    await self.cancel_embed(create_embed, create_ras_window, ras_preview_window,
+                                            title='Create RAS :warning:',
+                                            text='This create RAS sessions was cancelled, use the create command'
+                                                 ' again to start another session.')
                     return self.CANCEL
                 elif self.word_check(response.content, 'publish'):  # Listen for 'publish'
                     retry = False
@@ -376,7 +410,10 @@ class RoleGiver:
                 else:
                     await ctx.send('Invalid format detected, please look at example above.')
         except asyncio.TimeoutError:
-            await self.timeout_embed(create_embed, create_ras_window, ras_preview_window)
+            await self.timeout_embed(create_embed, create_ras_window, ras_preview_window,
+                                     title='Create RAS :octagonal_sign:',
+                                     text='This Create RAS session has timed out, please use the \'c!create\' command '
+                                          'again ')
             return self.TIMEOUT
 
         # Save new RAS to memory
@@ -392,6 +429,7 @@ class RoleGiver:
     # create() helpers #
     ####################
 
+    # Parses options and returns string of options
     @staticmethod
     def option_text(options):
         if len(options) == 1:
@@ -414,11 +452,63 @@ class RoleGiver:
        Helper function specific to edit() will be defined under this function
     #################################################"""
 
-    async def edit(self):
-        pass
+    async def edit(self, ctx, message_to_edit):
+        # Timeout for each step
+        timeout = 320.00
+        editing_ras = True
 
-    def example_edit_helper(self):
-        pass
+        # Build preview based on RAS message context
+        preview_window = None
+        preview_window_embed = message_to_edit.message.embeds[0]
+        preview_window_reactions = message_to_edit.message.reactions
+
+        # Make EDIT_RAS message embed, add needed fields
+        edit_ras_window = None
+        edit_embed = discord.Embed()
+        edit_embed.colour = discord.Colour.blue()
+        edit_embed.title = 'Edit RAS'  # Never changes, title of message
+        edit_embed.description = 'N/A'  # Message block used by bot
+        edit_embed.add_field(name='tip:', value='Type `cancel` at anytime to stop '
+                                                '(*WILL NOT SAVE YOUR WORK*)', inline=False)  # tips
+
+        # Wait for response from author
+        # message_check() used to check if author responded in correct channel
+        def message_check(message):
+            is_author = message.author == ctx.message.author
+            in_correct_channel = message.channel == ctx.message.channel
+            return is_author and in_correct_channel
+
+        try:
+            while editing_ras is True:
+
+                # Update windows with Main Menu
+                edit_embed.description = f'Hello, {ctx.message.author.name}! Please choose what component you would' \
+                                         f' like to edit:'
+                edit_embed.insert_field_at(0, name='Components:', value='```1. Posted Channel\n2. Title/Description\n'
+                                                                        '3. Emotes/Roles\n4. Unique\n'
+                                                                        '5. Colour```', inline=False)
+                # Send update to edit window
+                edit_ras_window = await ctx.send(embed=edit_embed)
+                # Send update to preview window
+                preview_window = await ctx.send('Preview:\n', embed=preview_window_embed)
+                for reaction in preview_window_reactions:
+                    await preview_window.add_reaction(reaction.emoji)
+
+                response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
+                if self.word_check(response.content, 'cancel'):
+                    await self.cancel_embed(edit_embed, edit_ras_window, preview_window, title='Edit RAS :warning:',
+                                            text='The edit RAS was cancelled. Your work was **not** saved')
+                    return self.CANCEL
+                elif self.word_check(response.content, 'done'):
+                    pass
+                else:
+                    await ctx.send('Unable to verify channel')
+
+        except asyncio.TimeoutError:
+            await self.timeout_embed(edit_embed, edit_ras_window, preview_window, title='Edit RAS :octagonal_sign:',
+                                     text='This edit RAS session has timed out, please use the previous command '
+                                          'again to try again.')
+            return self.TIMEOUT
 
     """#################################################
     Validating RAS states - Used to validate the RAS session state
@@ -728,13 +818,14 @@ class RoleGiver:
             return False
 
     @staticmethod
-    async def cancel_embed(embed: discord.Embed, create_ras_window: discord.Message, preview_ctx: discord.Message):
+    async def cancel_embed(embed: discord.Embed, create_ras_window: discord.Message, preview_ctx: discord.Message,
+                           title='Cancelled :warning:',
+                           text='This RAS form was cancelled. Your work was **not** saved.'):
         # Template for cancel embed
         embed.colour = discord.Colour.gold()
         embed.clear_fields()
-        embed.description = 'This Create RAS session has been cancelled, please use the \'c!create\' command ' \
-                            'again '
-        embed.title = 'Create RAS :warning:'
+        embed.title = title
+        embed.description = text
 
         # if a preview window exists close it
         if preview_ctx is not None:
@@ -744,13 +835,14 @@ class RoleGiver:
         await create_ras_window.edit(embed=embed)
 
     @staticmethod
-    async def timeout_embed(embed: discord.Embed, create_ras_window: discord.Message, preview_ctx: discord.Message):
+    async def timeout_embed(embed: discord.Embed, create_ras_window: discord.Message, preview_ctx: discord.Message,
+                            title='Timeout :octagonal_sign:',
+                            text='This RAS form has timed out. Use the previous command to try again'):
         # Template for timeout embed
         embed.colour = discord.Colour.red()
         embed.clear_fields()
-        embed.description = 'This Create RAS session has timed out, please use the \'c!create\' command ' \
-                            'again '
-        embed.title = 'Create RAS :octagonal_sign:'
+        embed.title = title
+        embed.description = text
 
         # if a preview window exists close it
         if preview_ctx is not None:

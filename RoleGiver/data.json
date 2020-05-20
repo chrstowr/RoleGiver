@@ -99,24 +99,27 @@
         ]
     },
     {
-        "msg": 712364980330299426,
-        "channel": 669593052578578436,
+        "msg": 712341279337611324,
+        "channel": 704140158941003907,
         "guild": 669593052578578432,
         "unique": false,
         "options": [
             {
-                "emote": "\ud83d\udfe5",
-                "role": null,
+                "emote": "\u2b1c",
+                "role": 704146146494513202,
                 "users": []
-            },
+            }
+        ]
+    },
+    {
+        "msg": 712342600610480145,
+        "channel": 704146455522181210,
+        "guild": 669593052578578432,
+        "unique": false,
+        "options": [
             {
                 "emote": "\ud83d\udfe9",
-                "role": null,
-                "users": []
-            },
-            {
-                "emote": "\u2b1c",
-                "role": null,
+                "role": 704146235170226236,
                 "users": []
             }
         ]
