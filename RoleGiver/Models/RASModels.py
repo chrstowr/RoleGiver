@@ -21,7 +21,7 @@ class RoleGiverSession:
 
     def print(self):
         # Todo: Convert user list to names for easier reading
-        print(f'[msg:{self.message},channel:{self.channel},unique:{self.unique},options:{self.options}]')
+        return f'[message:{self.message},channel:{self.channel},unique:{self.unique},options:{self.options}]'
 
     async def add_option(self, emote, role):
         self.options.append({'emote': emote, 'role': role, 'users': list()})

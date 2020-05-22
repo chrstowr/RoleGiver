@@ -2,12 +2,13 @@ import os
 import asyncio
 import discord
 import json
+import copy
 import re
 from time import perf_counter
 from collections import deque
 from json import JSONDecodeError
 from pathlib import Path
-from RoleGiver.models.RASModels import RoleGiverSession, QueueItem
+from RoleGiver.Models.RASModels import RoleGiverSession, QueueItem
 
 
 class RoleGiver:
@@ -452,31 +453,40 @@ class RoleGiver:
        Helper function specific to edit() will be defined under this function
     #################################################"""
 
-    async def edit(self, ctx, message_to_edit):
+    async def edit(self, ctx, ras_to_edit):
         # Timeout for each step
         timeout = 320.00
         editing_ras = True
 
         # Build preview based on RAS message context
         preview_window = None
-        preview_window_embed = message_to_edit.message.embeds[0]
-        preview_window_reactions = message_to_edit.message.reactions
+        preview_ras_obj = copy.copy(ras_to_edit)
+        preview_window_embed = preview_ras_obj.message.embeds[0]
+        preview_window_reactions = copy.copy(preview_ras_obj.message.reactions)
+        preview_window_embed.set_footer(text=f'Unique={preview_ras_obj.unique} | Channel={preview_ras_obj.channel.name}')
 
         # Make EDIT_RAS message embed, add needed fields
-        edit_ras_window = None
+        edit_window = None
         edit_embed = discord.Embed()
         edit_embed.colour = discord.Colour.blue()
         edit_embed.title = 'Edit RAS'  # Never changes, title of message
         edit_embed.description = 'N/A'  # Message block used by bot
-        edit_embed.add_field(name='tip:', value='Type `cancel` at anytime to stop '
-                                                '(*WILL NOT SAVE YOUR WORK*)', inline=False)  # tips
+        edit_embed.add_field(name='Components:', value='N/A')  # Components/Examples
+        edit_embed.add_field(name='tip:', value='N/A')  # tips
+
+        # Send update to edit window
+        edit_window = await ctx.send(embed=edit_embed)
+
+        # Send update to preview window
+        preview_window = await ctx.send('Preview:\n', embed=preview_window_embed)
 
         # Wait for response from author
         # message_check() used to check if author responded in correct channel
         def message_check(message):
             is_author = message.author == ctx.message.author
+            is_correct_guild = message.guild == ctx.message.guild
             in_correct_channel = message.channel == ctx.message.channel
-            return is_author and in_correct_channel
+            return is_author and in_correct_channel and is_correct_guild
 
         try:
             while editing_ras is True:
@@ -484,28 +494,161 @@ class RoleGiver:
                 # Update windows with Main Menu
                 edit_embed.description = f'Hello, {ctx.message.author.name}! Please choose what component you would' \
                                          f' like to edit:'
-                edit_embed.insert_field_at(0, name='Components:', value='```1. Posted Channel\n2. Title/Description\n'
-                                                                        '3. Emotes/Roles\n4. Unique\n'
-                                                                        '5. Colour```', inline=False)
+                edit_embed.set_field_at(0, name='Components:', value='```1. Posted Channel\n2. Title/Description\n'
+                                                                     '3. Emotes/Roles\n4. Unique\n'
+                                                                     '5. Colour```', inline=False)
+                edit_embed.set_field_at(1, name='tip:', value='Type `cancel` at anytime to stop '
+                                                              '(*WILL NOT SAVE YOUR WORK*)',
+                                        inline=False)
+
                 # Send update to edit window
-                edit_ras_window = await ctx.send(embed=edit_embed)
+                await edit_window.edit(embed=edit_embed)
+
                 # Send update to preview window
-                preview_window = await ctx.send('Preview:\n', embed=preview_window_embed)
+                preview_window_embed.set_footer(
+                    text=f'Unique={preview_ras_obj.unique} | Channel={preview_ras_obj.channel.name}')
+                await preview_window.edit(embed=preview_window_embed)
+                # Add reactions
                 for reaction in preview_window_reactions:
                     await preview_window.add_reaction(reaction.emoji)
 
+                # Remove reactions not needed
+                for reaction in preview_ras_obj.message.reactions:
+                    if reaction not in preview_window_reactions:
+                        await preview_window.clear_reaction(reaction.emoji)
+
                 response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
                 if self.word_check(response.content, 'cancel'):
-                    await self.cancel_embed(edit_embed, edit_ras_window, preview_window, title='Edit RAS :warning:',
+                    await self.cancel_embed(edit_embed, edit_window, preview_window, title='Edit RAS :warning:',
                                             text='The edit RAS was cancelled. Your work was **not** saved')
                     return self.CANCEL
+                elif self.word_check(response.content, 'sink'):
+                    # Delete old messages
+                    await edit_window.delete()
+                    await preview_window.delete()
+
+                    # Send new ones
+                    edit_window = await ctx.send(embed=edit_embed)
+                    preview_window = await ctx.send('Preview:\n', embed=preview_window_embed)
+                    for reaction in preview_window_reactions:
+                        await preview_window.add_reaction(reaction.emoji)
+
                 elif self.word_check(response.content, 'done'):
                     pass
                 else:
-                    await ctx.send('Unable to verify channel')
+                    if self.word_check(response.content, '1'):
+                        """###################################
+                               # Ask for channel/guild
+                        ###################################"""
+                        edit_embed.title = 'Edit RAS - Change Channel'
+                        edit_embed.description = f'Hello, {ctx.message.author.name}! Please enter the channel you ' \
+                                                 f'would like to see the RAS in.'
+                        edit_embed.set_field_at(0, name='Example:', value='`#example_channel`', inline=False)
+                        edit_embed.set_field_at(1, name='tip:', value='Type `cancel` at anytime to stop '
+                                                                      '(*WILL NOT SAVE YOUR WORK*), or '
+                                                                      '`done` to save this change',
+                                                inline=False)
+                        await edit_window.edit(embed=edit_embed)
 
+                        current_channel = ras_to_edit.channel
+
+                        preview_window_embed.insert_field_at(0, name='Current option (Will not appear in final RAS):',
+                                                             value='N/A')
+
+                        try:
+                            retry = True
+                            while retry is True:
+
+                                preview_window_embed.set_field_at(0, name='Current option:',
+                                                                  value='(Will not appear in final RAS)\n'
+                                                                        f'`#{current_channel.name}`')
+                                await preview_window.edit(embed=preview_window_embed)
+
+                                response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
+
+                                if self.word_check(response.content, 'cancel'):
+                                    retry = False
+                                    preview_window_embed.remove_field(0)
+                                elif self.word_check(response.content, 'done'):
+                                    retry = False
+                                    preview_ras_obj.channel = current_channel
+                                    preview_ras_obj.guild = response.guild
+                                    preview_window_embed.remove_field(0)
+                                elif len(response.channel_mentions) > 0:
+                                    if response.channel_mentions[0] in ctx.message.guild.channels:
+                                        current_channel = response.channel_mentions[0]
+                                else:
+                                    await ctx.send('Unable to verify channel')
+
+                        except asyncio.TimeoutError:
+
+                            await self.timeout_embed(edit_embed, edit_window, preview_window,
+                                                     title='Edit RAS :octagonal_sign:',
+                                                     text='This edit RAS session has timed out, please use the '
+                                                          'previous command '
+                                                          'again to try again.')
+                            return self.TIMEOUT
+                    elif self.word_check(response.content, '2'):
+                        """###################################
+                                                      # Ask for channel/guild
+                                               ###################################"""
+                        edit_embed.title = 'Edit RAS - Change title and description'
+                        edit_embed.description = f'Hello, {ctx.message.author.name}! Please enter the channel you ' \
+                                                 f'would like to see the RAS in.'
+                        edit_embed.set_field_at(0, name='Example:', value='`#example_channel`', inline=False)
+                        edit_embed.set_field_at(1, name='tip:', value='Type `cancel` at anytime to stop '
+                                                                      '(*WILL NOT SAVE YOUR WORK*), or '
+                                                                      '`done` to save this change',
+                                                inline=False)
+                        await edit_window.edit(embed=edit_embed)
+
+                        current_title = edit_embed.title
+                        current_description = edit_embed.description
+
+                        preview_window_embed.insert_field_at(0, name='Current option (Will not appear in final RAS):',
+                                                             value=f'`{current_title} | {current_description}`')
+
+                        try:
+                            retry = True
+                            while retry is True:
+
+                                preview_window_embed.set_field_at(0,
+                                                                  name='Current option (Will not appear in final RAS):',
+                                                                  value=f'`{current_title} | {current_description}`')
+                                await preview_window.edit(embed=preview_window_embed)
+
+                                response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
+
+                                if self.word_check(response.content, 'cancel'):
+                                    retry = False
+                                    preview_window_embed.remove_field(0)
+                                elif self.word_check(response.content, 'done'):
+                                    retry = False
+                                    preview_ras_obj.channel = current_channel
+                                    preview_ras_obj.guild = response.guild
+                                    preview_window_embed.remove_field(0)
+                                elif len(response.channel_mentions) > 0:
+                                    if response.channel_mentions[0] in ctx.message.guild.channels:
+                                        current_channel = response.channel_mentions[0]
+                                else:
+                                    await ctx.send('Unable to verify channel')
+
+                        except asyncio.TimeoutError:
+
+                            await self.timeout_embed(edit_embed, edit_window, preview_window,
+                                                     title='Edit RAS :octagonal_sign:',
+                                                     text='This edit RAS session has timed out, please use the '
+                                                          'previous command '
+                                                          'again to try again.')
+                            return self.TIMEOUT
+                    elif self.word_check(response.content, '3'):
+                        pass
+                    elif self.word_check(response.content, '4'):
+                        pass
+                    elif self.word_check(response.content, '5'):
+                        pass
         except asyncio.TimeoutError:
-            await self.timeout_embed(edit_embed, edit_ras_window, preview_window, title='Edit RAS :octagonal_sign:',
+            await self.timeout_embed(edit_embed, edit_window, preview_window, title='Edit RAS :octagonal_sign:',
                                      text='This edit RAS session has timed out, please use the previous command '
                                           'again to try again.')
             return self.TIMEOUT
