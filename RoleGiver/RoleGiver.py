@@ -463,7 +463,8 @@ class RoleGiver:
         preview_ras_obj = copy.copy(ras_to_edit)
         preview_window_embed = preview_ras_obj.message.embeds[0]
         preview_window_reactions = copy.copy(preview_ras_obj.message.reactions)
-        preview_window_embed.set_footer(text=f'Unique={preview_ras_obj.unique} | Channel={preview_ras_obj.channel.name}')
+        preview_window_embed.set_footer(
+            text=f'Unique={preview_ras_obj.unique} | Channel={preview_ras_obj.channel.name}')
 
         # Make EDIT_RAS message embed, add needed fields
         edit_window = None
@@ -536,9 +537,10 @@ class RoleGiver:
                 elif self.word_check(response.content, 'done'):
                     pass
                 else:
+
                     if self.word_check(response.content, '1'):
                         """###################################
-                               # Ask for channel/guild
+                        # Ask for channel/guild
                         ###################################"""
                         edit_embed.title = 'Edit RAS - Change Channel'
                         edit_embed.description = f'Hello, {ctx.message.author.name}! Please enter the channel you ' \
@@ -588,50 +590,44 @@ class RoleGiver:
                                                           'previous command '
                                                           'again to try again.')
                             return self.TIMEOUT
+
                     elif self.word_check(response.content, '2'):
                         """###################################
-                                                      # Ask for channel/guild
-                                               ###################################"""
+                        # Ask for title/desc
+                        ###################################"""
                         edit_embed.title = 'Edit RAS - Change title and description'
-                        edit_embed.description = f'Hello, {ctx.message.author.name}! Please enter the channel you ' \
-                                                 f'would like to see the RAS in.'
-                        edit_embed.set_field_at(0, name='Example:', value='`#example_channel`', inline=False)
+                        edit_embed.description = f'Hello, {ctx.message.author.name}! Please enter the title and ' \
+                                                 f'description you would like to see in the RAS.'
+                        edit_embed.set_field_at(0, name='Example:', value='`title here | description here`',
+                                                inline=False)
                         edit_embed.set_field_at(1, name='tip:', value='Type `cancel` at anytime to stop '
                                                                       '(*WILL NOT SAVE YOUR WORK*), or '
                                                                       '`done` to save this change',
                                                 inline=False)
                         await edit_window.edit(embed=edit_embed)
 
-                        current_title = edit_embed.title
-                        current_description = edit_embed.description
-
-                        preview_window_embed.insert_field_at(0, name='Current option (Will not appear in final RAS):',
-                                                             value=f'`{current_title} | {current_description}`')
+                        default_title = preview_window_embed.title
+                        default_description = preview_window_embed.description
 
                         try:
                             retry = True
                             while retry is True:
 
-                                preview_window_embed.set_field_at(0,
-                                                                  name='Current option (Will not appear in final RAS):',
-                                                                  value=f'`{current_title} | {current_description}`')
-                                await preview_window.edit(embed=preview_window_embed)
-
                                 response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
 
                                 if self.word_check(response.content, 'cancel'):
                                     retry = False
-                                    preview_window_embed.remove_field(0)
+                                    preview_window_embed.title = default_title
+                                    preview_window_embed.description = default_description
                                 elif self.word_check(response.content, 'done'):
                                     retry = False
-                                    preview_ras_obj.channel = current_channel
-                                    preview_ras_obj.guild = response.guild
-                                    preview_window_embed.remove_field(0)
-                                elif len(response.channel_mentions) > 0:
-                                    if response.channel_mentions[0] in ctx.message.guild.channels:
-                                        current_channel = response.channel_mentions[0]
+                                elif self.verify_title_desc(response.content):
+                                    items = response.content.split('|')
+                                    preview_window_embed.title = items[0].strip()
+                                    preview_window_embed.description = items[1].strip()
+                                    await preview_window.edit(embed=preview_window_embed)
                                 else:
-                                    await ctx.send('Unable to verify channel')
+                                    await ctx.send('Invalid format')
 
                         except asyncio.TimeoutError:
 
@@ -641,6 +637,7 @@ class RoleGiver:
                                                           'previous command '
                                                           'again to try again.')
                             return self.TIMEOUT
+
                     elif self.word_check(response.content, '3'):
                         pass
                     elif self.word_check(response.content, '4'):
