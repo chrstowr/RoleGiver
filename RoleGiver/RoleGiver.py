@@ -290,10 +290,10 @@ class RoleGiver:
                     return self.CANCEL
                 elif self.word_check(response.content, 'yes') or self.word_check(response.content, 'no'):
                     retry = False
-                    if response.content == 'yes':
+                    if self.word_check(response.content, 'yes'):
                         new_ras_session.unique = True
                         new_ras_session_embed.set_footer(text='Unique=yes')
-                    else:
+                    elif self.word_check(response.content, 'no'):
                         new_ras_session.unique = False
                         new_ras_session_embed.set_footer(text='Unique=no')
                     await ras_preview_window.edit(embed=new_ras_session_embed)
@@ -639,10 +639,49 @@ class RoleGiver:
                             return self.TIMEOUT
 
                     elif self.word_check(response.content, '3'):
+                        # emote/roles
                         pass
                     elif self.word_check(response.content, '4'):
-                        pass
+                        # unique
+                        """###################################
+                        # Ask for title/desc
+                        ###################################"""
+                        edit_embed.title = 'Edit RAS - Change title and description'
+                        edit_embed.description = f'Hello, {ctx.message.author.name}! Please enter the title and ' \
+                                                 f'description you would like to see in the RAS.'
+                        edit_embed.set_field_at(0, name='Example:', value='`title here | description here`',
+                                                inline=False)
+                        edit_embed.set_field_at(1, name='tip:', value='Type `cancel` at anytime to stop '
+                                                                      '(*WILL NOT SAVE YOUR WORK*), or '
+                                                                      '`done` to save this change',
+                                                inline=False)
+                        await edit_window.edit(embed=edit_embed)
+
+                        default_unique = ''
+
+                        try:
+                            retry = True
+                            while retry is True:
+
+                                response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
+
+                                if self.word_check(response.content, 'cancel'):
+                                    retry = False
+                                elif self.word_check(response.content, 'yes') or self.word_check(response.content, 'no'):
+                                    pass
+                                else:
+                                    await ctx.send('Invalid format detected, please look at example above.')
+
+                        except asyncio.TimeoutError:
+
+                            await self.timeout_embed(edit_embed, edit_window, preview_window,
+                                                     title='Edit RAS :octagonal_sign:',
+                                                     text='This edit RAS session has timed out, please use the '
+                                                          'previous command '
+                                                          'again to try again.')
+                            return self.TIMEOUT
                     elif self.word_check(response.content, '5'):
+                        # colour
                         pass
         except asyncio.TimeoutError:
             await self.timeout_embed(edit_embed, edit_window, preview_window, title='Edit RAS :octagonal_sign:',
