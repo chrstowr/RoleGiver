@@ -27,7 +27,16 @@ class RoleGiverSession:
         self.options.append({'emote': emote, 'role': role, 'users': list()})
 
     async def remove_option(self, emote):
-        option_to_remove = discord.utils.find(lambda o: o['emote'] == emote, self.options)
+
+        cleaned_emote = None
+
+        if type(emote) is str:
+            cleaned_emote = emote
+        else:
+            cleaned_emote = emote.name
+
+        option_to_remove = discord.utils.find(lambda o: o['emote'] == cleaned_emote, self.options)
+        print(option_to_remove)
         self.options.remove(option_to_remove)
 
     # Returns list of roles associated with this RAS

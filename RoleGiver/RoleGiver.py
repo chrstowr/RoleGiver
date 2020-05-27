@@ -3,7 +3,7 @@ import asyncio
 import discord
 import json
 import copy
-import re
+
 from time import perf_counter
 from collections import deque
 from json import JSONDecodeError
@@ -292,10 +292,10 @@ class RoleGiver:
                     retry = False
                     if self.word_check(response.content, 'yes'):
                         new_ras_session.unique = True
-                        new_ras_session_embed.set_footer(text='Unique=yes')
+                        new_ras_session_embed.set_footer(text=f'Unique={True}')
                     elif self.word_check(response.content, 'no'):
                         new_ras_session.unique = False
-                        new_ras_session_embed.set_footer(text='Unique=no')
+                        new_ras_session_embed.set_footer(text=f'Unique={False}')
                     await ras_preview_window.edit(embed=new_ras_session_embed)
                 else:
                     await ctx.send('Invalid format detected, please look at example above.')
@@ -432,21 +432,39 @@ class RoleGiver:
 
     # Parses options and returns string of options
     @staticmethod
-    def option_text(options):
-        if len(options) == 1:
-            return options[0]
-        else:
-            option_text = options[0]
-            count = 1
-            while count < len(options):
-                # Check if the role text is 'N/A' for slightly different formatting
-                if options[count][1] == 'N/A':
-                    option_text = option_text + f'{count}:  {options[count][0]} - [{options[count][1]}]\n'
-                else:
-                    option_text = option_text + f'{count}:  {options[count][0]} - @{options[count][1]}\n'
+    def option_text(options, format_type=0):
+        if format_type == 0:
+            if len(options) == 1:
+                return options[0]
+            else:
+                option_text = options[0]
+                count = 1
+                while count < len(options):
+                    # Check if the role text is 'N/A' for slightly different formatting
+                    if options[count][1] == 'N/A':
+                        option_text = option_text + f'{count}:  {options[count][0]} - [{options[count][1]}]\n'
+                    else:
+                        option_text = option_text + f'{count}:  {options[count][0]} - @{options[count][1]}\n'
 
-                count = count + 1
-            return option_text
+                    count = count + 1
+                return option_text
+        elif format_type == 1:
+            if len(options) < 1:
+                return '(This will not display on final published RAS)\n'
+            else:
+                option_text = '(This will not display on final published RAS)\n'
+                count = 0
+                for opt in options:
+                    if opt['role'] is None:
+                        emote = opt['emote']
+                        option_text = option_text + f'{count}:  {emote} - [N/A]\n'
+                    else:
+                        emote = opt['emote']
+                        role = opt['role']
+                        option_text = option_text + f'{count}:  {emote} - @{role}\n'
+                    count = count + 1
+
+                return option_text
 
     """#################################################
        edit() - Routine that contains logic for the RAS (Reaction-based role Assignment System) edit form.
@@ -471,9 +489,14 @@ class RoleGiver:
         edit_embed = discord.Embed()
         edit_embed.colour = discord.Colour.blue()
         edit_embed.title = 'Edit RAS'  # Never changes, title of message
-        edit_embed.description = 'N/A'  # Message block used by bot
-        edit_embed.add_field(name='Components:', value='N/A')  # Components/Examples
-        edit_embed.add_field(name='tip:', value='N/A')  # tips
+        edit_embed.description = f'Hello, {ctx.message.author.name}! Please choose what component you would' \
+                                 f' like to edit:'  # Message block used by bot
+        edit_embed.add_field(name='Components:', value='```1. Posted Channel\n2. Title/Description\n'
+                                                       '3. Emotes/Roles\n4. Unique\n'
+                                                       '5. Colour```', inline=False)
+        edit_embed.add_field(name='tip:', value='Type `cancel` at anytime to stop '
+                                                '(*WILL NOT SAVE YOUR WORK*)',
+                             inline=False)  # tips
 
         # Send update to edit window
         edit_window = await ctx.send(embed=edit_embed)
@@ -588,7 +611,7 @@ class RoleGiver:
                                                      title='Edit RAS :octagonal_sign:',
                                                      text='This edit RAS session has timed out, please use the '
                                                           'previous command '
-                                                          'again to try again.')
+                                                          'to try again.')
                             return self.TIMEOUT
 
                     elif self.word_check(response.content, '2'):
@@ -635,21 +658,20 @@ class RoleGiver:
                                                      title='Edit RAS :octagonal_sign:',
                                                      text='This edit RAS session has timed out, please use the '
                                                           'previous command '
-                                                          'again to try again.')
+                                                          'to try again.')
                             return self.TIMEOUT
 
                     elif self.word_check(response.content, '3'):
                         # emote/roles
-                        pass
-                    elif self.word_check(response.content, '4'):
-                        # unique
                         """###################################
-                        # Ask for title/desc
+                        # Edit emote/role options
                         ###################################"""
-                        edit_embed.title = 'Edit RAS - Change title and description'
-                        edit_embed.description = f'Hello, {ctx.message.author.name}! Please enter the title and ' \
-                                                 f'description you would like to see in the RAS.'
-                        edit_embed.set_field_at(0, name='Example:', value='`title here | description here`',
+                        edit_embed.title = 'Edit RAS - Options'
+                        edit_embed.description = f'{ctx.message.author.name}, please list out the reaction/roles you' \
+                                                 f' would like to add: \n[:the_emote:]\' \'[@role]. To delete a ' \
+                                                 f'line type \'del [int]\''
+                        edit_embed.set_field_at(0, name='Example:',
+                                                value='`:warning: @spoiler_squad`\n`del 1`',
                                                 inline=False)
                         edit_embed.set_field_at(1, name='tip:', value='Type `cancel` at anytime to stop '
                                                                       '(*WILL NOT SAVE YOUR WORK*), or '
@@ -657,7 +679,17 @@ class RoleGiver:
                                                 inline=False)
                         await edit_window.edit(embed=edit_embed)
 
-                        default_unique = ''
+                        preview_window_embed.add_field(name='Current options:', value='None', inline=False)
+
+                        default_options = preview_ras_obj.options
+
+                        # update preview window
+                        option_text = self.option_text(preview_ras_obj.options, format_type=1)
+                        preview_window_embed.set_field_at(0,
+                                                          name='\nCurrent options:',
+                                                          value=option_text, inline=False)
+                        # Update option list in preview window
+                        await preview_window.edit(embed=preview_window_embed)
 
                         try:
                             retry = True
@@ -667,10 +699,34 @@ class RoleGiver:
 
                                 if self.word_check(response.content, 'cancel'):
                                     retry = False
-                                elif self.word_check(response.content, 'yes') or self.word_check(response.content, 'no'):
-                                    pass
-                                else:
-                                    await ctx.send('Invalid format detected, please look at example above.')
+                                    preview_ras_obj.options = default_options
+                                    preview_window_embed.remove_field(0)
+                                elif self.word_check(response.content, 'done'):
+                                    retry = False
+                                    preview_window_embed.remove_field(0)
+                                elif self.word_check(response.content, 'del'):
+                                    # Get first argument after delete
+                                    arg = response.content.strip(' ').split(' ')
+                                    if len(arg) > 1:
+                                        arg = arg[1].strip(' ')
+                                        # Check if is int
+                                        if self.is_int(arg) is True:
+                                            delete_option = int(arg)
+                                            if 0 <= delete_option < len(preview_ras_obj.options):
+                                                # Remove from option list
+                                                option_to_remove = preview_ras_obj.options.pop(delete_option)
+
+                                                # Remove reaction
+                                                await preview_window.remove_reaction(option_to_remove['emote'],
+                                                                                     self.bot.user)
+
+                                                # update preview window
+                                                option_text = self.option_text(preview_ras_obj.options, format_type=1)
+                                                preview_window_embed.set_field_at(0,
+                                                                                  name='\nCurrent options:',
+                                                                                  value=option_text, inline=False)
+                                                # Update option list in preview window
+                                                await preview_window.edit(embed=preview_window_embed)
 
                         except asyncio.TimeoutError:
 
@@ -678,15 +734,122 @@ class RoleGiver:
                                                      title='Edit RAS :octagonal_sign:',
                                                      text='This edit RAS session has timed out, please use the '
                                                           'previous command '
-                                                          'again to try again.')
+                                                          'to try again.')
+                            return self.TIMEOUT
+                    elif self.word_check(response.content, '4'):
+                        # unique
+                        """###################################
+                        # Ask if RAS will be Unique
+                        ###################################"""
+                        edit_embed.title = 'Edit RAS - Unique'
+                        edit_embed.description = f'Hello, {ctx.message.author.name}! Please enter yes or no if you ' \
+                                                 f'want the RAS to use unique role options.'
+                        edit_embed.set_field_at(0, name='Example:',
+                                                value='Yes - Only one role will be assigned at a time\n'
+                                                      'No - Multiple Roles can be '
+                                                      'assigned from this RAS',
+                                                inline=False)
+                        edit_embed.set_field_at(1, name='tip:', value='Type `cancel` at anytime to stop '
+                                                                      '(*WILL NOT SAVE YOUR WORK*), or '
+                                                                      '`done` to save this change',
+                                                inline=False)
+                        await edit_window.edit(embed=edit_embed)
+
+                        default_unique = preview_ras_obj.unique
+
+                        try:
+                            retry = True
+                            while retry is True:
+
+                                response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
+
+                                if self.word_check(response.content, 'cancel'):
+                                    retry = False
+                                    preview_ras_obj.unique = default_unique
+                                elif self.word_check(response.content, 'done'):
+                                    retry = False
+                                elif self.word_check(response.content, 'yes'):
+                                    preview_ras_obj.unique = True
+                                    preview_window_embed.set_footer(
+                                        text=f'Unique={preview_ras_obj.unique} | Channel={preview_ras_obj.channel.name}')
+                                    await preview_window.edit(embed=preview_window_embed)
+                                elif self.word_check(response.content, 'no'):
+                                    preview_ras_obj.unique = False
+                                    preview_window_embed.set_footer(
+                                        text=f'Unique={preview_ras_obj.unique} | Channel={preview_ras_obj.channel.name}')
+                                    await preview_window.edit(embed=preview_window_embed)
+
+                        except asyncio.TimeoutError:
+
+                            await self.timeout_embed(edit_embed, edit_window, preview_window,
+                                                     title='Edit RAS :octagonal_sign:',
+                                                     text='This edit RAS session has timed out, please use the '
+                                                          'previous command '
+                                                          'to try again.')
                             return self.TIMEOUT
                     elif self.word_check(response.content, '5'):
                         # colour
-                        pass
+                        """###################################
+                        # Set colour of RAS
+                        ###################################"""
+                        retry = True
+                        edit_embed.title = 'Edit RAS - Colour'
+                        edit_embed.description = f'{ctx.message.author.name}, please choose the color you want to ' \
+                                                 f'associate with this RAS in this format `[0-255],[0-255],[0-255]` ' \
+                                                 f'See tip for example.'
+                        edit_embed.set_field_at(0, name='Example:',
+                                                value='`255,255,255`',
+                                                inline=False)
+                        edit_embed.set_field_at(1, name='tip:', value='Type `cancel` at anytime to stop '
+                                                                      '(*WILL NOT SAVE YOUR WORK*), or '
+                                                                      '`done` to save this change',
+                                                inline=False)
+                        await edit_window.edit(embed=edit_embed)
+
+                        if preview_window_embed.colour is not discord.Embed.Empty:
+                            default_colour = preview_window_embed.colour
+                        else:
+                            default_colour = discord.Colour.from_rgb(32, 34, 37)
+                            preview_window_embed.colour = default_colour
+
+                        preview_window_embed.insert_field_at(0, name='Current colour',
+                                                             value=f'{default_colour.to_rgb()}')
+
+                        await preview_window.edit(embed=preview_window_embed)
+
+                        try:
+                            while retry is True:
+                                response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
+
+                                if self.word_check(response.content, 'cancel'):
+                                    retry = False
+                                    preview_window_embed.remove_field(0)
+                                    preview_window_embed.colour = default_colour
+                                elif self.word_check(response.content, 'done'):
+                                    retry = False
+                                    preview_window_embed.remove_field(0)
+                                else:
+                                    new_color = self.color_atlas(response)
+                                    if new_color is not None:
+                                        preview_window_embed.colour = new_color
+
+                                        preview_window_embed.set_field_at(0,
+                                                                          name='Current color:',
+                                                                          value=new_color.to_rgb(), inline=False)
+                                        await preview_window.edit(embed=preview_window_embed)
+
+                        except asyncio.TimeoutError:
+
+                            await self.timeout_embed(edit_embed, edit_window, preview_window,
+                                                     title='Edit RAS :octagonal_sign:',
+                                                     text='This edit RAS session has timed out, please use the '
+                                                          'previous command '
+                                                          'to try again.')
+                            return self.TIMEOUT
         except asyncio.TimeoutError:
             await self.timeout_embed(edit_embed, edit_window, preview_window, title='Edit RAS :octagonal_sign:',
                                      text='This edit RAS session has timed out, please use the previous command '
-                                          'again to try again.')
+                                          ' to try again.')
             return self.TIMEOUT
 
     """#################################################

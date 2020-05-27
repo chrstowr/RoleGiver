@@ -22,6 +22,7 @@ async def action_queue_clock():
     while True:
         if len(role_giver.action_queue) > 0:
             await role_giver.action_queue_worker()
+            await asyncio.sleep(.25)
         else:
             await asyncio.sleep(1)
 
