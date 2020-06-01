@@ -116,7 +116,23 @@ async def edit(ctx, *args):
         if matching_ras is not None:
             status = await role_giver.edit(ctx, matching_ras)
             print(f'Status of edit RAS session: {status}')
+        elif role_giver.word_check(args[0], 'help'):
+            description = 'Description:\nEdit an existing RAS\'s channel, title/description, emotes/roles, unique state' \
+                          ', or colour.\n\n'
+            proper_format = 'Proper format:\nc!edit <message_id>\n\n'
+            example = 'Example:\nc!edit 111111111111111111'
+            await ctx.send(f'```{description}{proper_format}{example}```')
 
+
+# Role giver edit command - Calls RG edit form
+@bot.command(name='delete', help='Delete an RAS')
+async def delete(ctx, *args):
+    if len(args) == 1:
+        matching_ras = discord.utils.find(lambda m: str(m.message.id) == args[0]
+                                                    and ctx.guild.id == m.guild.id, role_giver.ras_sessions)
+        if matching_ras is not None:
+            status = await role_giver.delete(ctx, matching_ras)
+            print(f'Status of delete RAS session: {status}')
 
 @bot.command(name='dumpsessions', help='')
 async def dumpsessions(ctx, *args):
