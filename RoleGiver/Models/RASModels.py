@@ -6,6 +6,7 @@ from time import perf_counter
 class RoleGiverSession:
 
     def __init__(self):
+        # TODO: add field for unique message ID seperate from discord message ID
         # The message id of the RAS in
         self.message = None
         # The channel the RAS is in
@@ -20,7 +21,6 @@ class RoleGiverSession:
         self.options = list()
 
     def print(self):
-        # Todo: Convert user list to names for easier reading
         return f'[message:{self.message},channel:{self.channel},unique:{self.unique},options:{self.options}]'
 
     async def add_option(self, emote, role):

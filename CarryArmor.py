@@ -103,7 +103,7 @@ async def create(ctx, *args):
 
 
 # Role giver edit command - Calls RG edit form
-@bot.command(name='edit', help='Edit existing ras session')
+@bot.command(name='edit', help='Edit existing ras session:c!edit <msg_id>')
 async def edit(ctx, *args):
     # start routine to edit ras session
     # Check ADMIN rights?
@@ -125,7 +125,7 @@ async def edit(ctx, *args):
 
 
 # Role giver edit command - Calls RG edit form
-@bot.command(name='delete', help='Delete an RAS')
+@bot.command(name='delete', help='Delete an RAS: c!delete <msg_id>')
 async def delete(ctx, *args):
     if len(args) == 1:
         matching_ras = discord.utils.find(lambda m: str(m.message.id) == args[0]
@@ -133,6 +133,7 @@ async def delete(ctx, *args):
         if matching_ras is not None:
             status = await role_giver.delete(ctx, matching_ras)
             print(f'Status of delete RAS session: {status}')
+
 
 @bot.command(name='dumpsessions', help='')
 async def dumpsessions(ctx, *args):

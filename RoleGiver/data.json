@@ -123,5 +123,23 @@
                 "users": []
             }
         ]
+    },
+    {
+        "msg": 718517489675534366,
+        "channel": 704146455522181210,
+        "guild": 669593052578578432,
+        "unique": false,
+        "options": [
+            {
+                "emote": "\ud83d\udfe5",
+                "role": null,
+                "users": []
+            },
+            {
+                "emote": "\ud83d\udfe6",
+                "role": null,
+                "users": []
+            }
+        ]
     }
 ]

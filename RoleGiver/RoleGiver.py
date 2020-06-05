@@ -21,6 +21,7 @@ class RoleGiver:
         self.FAILURE = 1
         self.CANCEL = 2
         self.TIMEOUT = 4
+        self.timeout = 320.00
 
         self.ras_sessions = list()
         # Holds queue action items to execute role adds or removals
@@ -33,11 +34,8 @@ class RoleGiver:
     create() - Routine that contains logic for the RAS (Reaction-based role Assignment System) create form.
     Helper function specific to create() will be defined under this function
     #################################################"""
-
-    # TODO: Remove embed from RAS session object
     async def create(self, ctx):
         # Timeout for each step
-        timeout = 320.00
 
         # Initialize needed variables
         ras_preview_window = None
@@ -77,7 +75,7 @@ class RoleGiver:
         try:
             retry = True
             while retry is True:
-                response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
+                response = await self.bot.wait_for('message', timeout=self.timeout, check=message_check)
                 if self.word_check(response.content, 'cancel'):
                     await self.cancel_embed(create_embed, create_ras_window, ras_preview_window,
                                             title='Create RAS :warning:',
@@ -122,7 +120,7 @@ class RoleGiver:
         try:
             retry = True
             while retry is True:
-                response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
+                response = await self.bot.wait_for('message', timeout=self.timeout, check=message_check)
                 if self.word_check(response.content, 'cancel'):
                     await self.cancel_embed(create_embed, create_ras_window, ras_preview_window,
                                             title='Create RAS :warning:',
@@ -165,7 +163,7 @@ class RoleGiver:
             retry = True
             options_strings = ['(This will not display on final published RAS)\n']
             while retry is True:
-                response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
+                response = await self.bot.wait_for('message', timeout=self.timeout, check=message_check)
                 if self.word_check(response.content, 'cancel'):  # Check for 'cancel'
                     await self.cancel_embed(create_embed, create_ras_window, ras_preview_window,
                                             title='Create RAS :warning:',
@@ -287,7 +285,7 @@ class RoleGiver:
         try:
             retry = True
             while retry is True:
-                response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
+                response = await self.bot.wait_for('message', timeout=self.timeout, check=message_check)
                 if self.word_check(response.content, 'cancel'):
                     await self.cancel_embed(create_embed, create_ras_window, ras_preview_window,
                                             title='Create RAS :warning:',
@@ -336,7 +334,7 @@ class RoleGiver:
         try:
             retry = True
             while retry is True:
-                response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
+                response = await self.bot.wait_for('message', timeout=self.timeout, check=message_check)
                 if self.word_check(response.content, 'cancel'):  # Check for 'cancel'
                     await self.cancel_embed(create_embed, create_ras_window, ras_preview_window,
                                             title='Create RAS :warning:',
@@ -385,7 +383,7 @@ class RoleGiver:
         try:
             retry = True
             while retry is True:
-                response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
+                response = await self.bot.wait_for('message', timeout=self.timeout, check=message_check)
                 if self.word_check(response.content, 'cancel'):  # Listen for 'cancel'
                     await self.cancel_embed(create_embed, create_ras_window, ras_preview_window,
                                             title='Create RAS :warning:',
@@ -479,7 +477,7 @@ class RoleGiver:
 
     async def edit(self, ctx, ras_to_edit):
         # Timeout for each step
-        timeout = 320.00
+
         editing_ras = True
 
         # Build preview based on RAS message context
@@ -551,7 +549,7 @@ class RoleGiver:
                     if match is None:
                         await preview_window.clear_reaction(reaction.emoji)
 
-                response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
+                response = await self.bot.wait_for('message', timeout=self.timeout, check=message_check)
                 if self.word_check(response.content, 'cancel'):
                     await self.cancel_embed(edit_embed, edit_window, preview_window, title='Edit RAS :warning:',
                                             text='The edit RAS was cancelled. Your work was **not** saved')
@@ -591,15 +589,17 @@ class RoleGiver:
                     for option in preview_ras_obj.options:
                         await preview_window.add_reaction(option['emote'])
 
+                    old_ras_message = await self.bot.get_channel(ras_to_edit.channel.id).fetch_message(
+                        ras_to_edit.message.id)
                     old_preview_window = await ctx.send('OLD: ', embed=ras_to_edit.message.embeds[0])
-                    for reaction in ras_to_edit.message.reactions:
+                    for reaction in old_ras_message.reactions:
                         await old_preview_window.add_reaction(reaction.emoji)
 
                     try:
                         retry = True
                         while retry is True:
 
-                            response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
+                            response = await self.bot.wait_for('message', timeout=self.timeout, check=message_check)
 
                             if self.word_check(response.content, 'cancel'):
                                 await self.cancel_embed(edit_embed, edit_window, preview_window,
@@ -607,8 +607,55 @@ class RoleGiver:
                                                         text='The edit RAS was cancelled. Your work was **not** saved')
                                 await old_preview_window.delete()
                                 return self.CANCEL
-                            elif self.word_check(response.content, 'done'):
+                            elif self.word_check(response.content, 'publish'):
+                                # Apply following changes:
+                                # new embed
+                                await ras_to_edit.message.edit(embed=preview_window_embed)
+                                # unique state
+                                ras_to_edit.unique = preview_ras_obj.unique
+                                # check reactions
+                                ras_to_edit.options = preview_ras_obj.options
+
+                                # Add reactions
+                                for option in ras_to_edit.options:
+                                    await ras_to_edit.message.add_reaction(option['emote'])
+
+                                # Remove reactions not needed
+                                current_message_state_ras_to_edit = await ras_to_edit.channel.fetch_message(
+                                    ras_to_edit.message.id)
+                                for reaction in current_message_state_ras_to_edit.reactions:
+                                    match = discord.utils.find(lambda o: o['emote'] == reaction.emoji,
+                                                               ras_to_edit.options)
+                                    if match is None:
+                                        await ras_to_edit.message.clear_reaction(reaction.emoji)
+
+                                # Move channel
+                                if ras_to_edit.channel is not preview_ras_obj.channel:
+                                    new_message_ctx = await preview_ras_obj.channel.send(
+                                        embed=current_message_state_ras_to_edit.embeds[0])
+
+                                    if new_message_ctx is not None:
+                                        for option in ras_to_edit.options:
+                                            await new_message_ctx.add_reaction(option['emote'])
+                                        await ras_to_edit.message.delete()
+                                        ras_to_edit.channel = new_message_ctx.channel
+                                        ras_to_edit.message = new_message_ctx
+                                    else:
+                                        await ctx.send("Error moving RAS to another channel")
+
                                 retry = False
+                                editing_ras = False
+
+                                await old_preview_window.delete()
+                                await preview_window.delete()
+
+                                edit_embed.title = 'Edit RAS  -  :white_check_mark:'
+                                edit_embed.description = f'CONFIRMATION'
+                                edit_embed.colour = discord.Colour.green()
+                                await edit_window.edit(embed=edit_embed)
+
+                                return self.SUCCESS
+
                     except asyncio.TimeoutError:
                         await self.timeout_embed(edit_embed, edit_window, preview_window,
                                                  title='Edit RAS :octagonal_sign:',
@@ -625,7 +672,8 @@ class RoleGiver:
                         ###################################"""
                         edit_embed.title = 'Edit RAS - Change Channel'
                         edit_embed.description = f'Hello, {ctx.message.author.name}! Please enter the channel you ' \
-                                                 f'would like to see the RAS in.'
+                                                 f'would like to see the RAS in. \n```diff\n-THIS WILL CLEAR ALL REACTIONS ' \
+                                                 f'AND ROLES. Users must react again to regain role```'
                         edit_embed.set_field_at(0, name='Example:', value='`#example_channel`', inline=False)
                         edit_embed.set_field_at(1, name='tip:', value='Type `cancel` at anytime to stop '
                                                                       '(*WILL NOT SAVE YOUR WORK*), or '
@@ -647,7 +695,7 @@ class RoleGiver:
                                                                         f'`#{current_channel.name}`')
                                 await preview_window.edit(embed=preview_window_embed)
 
-                                response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
+                                response = await self.bot.wait_for('message', timeout=self.timeout, check=message_check)
 
                                 if self.word_check(response.content, 'cancel'):
                                     retry = False
@@ -694,7 +742,7 @@ class RoleGiver:
                             retry = True
                             while retry is True:
 
-                                response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
+                                response = await self.bot.wait_for('message', timeout=self.timeout, check=message_check)
 
                                 if self.word_check(response.content, 'cancel'):
                                     retry = False
@@ -753,7 +801,7 @@ class RoleGiver:
                             retry = True
                             while retry is True:
 
-                                response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
+                                response = await self.bot.wait_for('message', timeout=self.timeout, check=message_check)
 
                                 if self.word_check(response.content, 'cancel'):
                                     retry = False
@@ -872,7 +920,7 @@ class RoleGiver:
                             retry = True
                             while retry is True:
 
-                                response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
+                                response = await self.bot.wait_for('message', timeout=self.timeout, check=message_check)
 
                                 if self.word_check(response.content, 'cancel'):
                                     retry = False
@@ -931,7 +979,7 @@ class RoleGiver:
 
                         try:
                             while retry is True:
-                                response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
+                                response = await self.bot.wait_for('message', timeout=self.timeout, check=message_check)
 
                                 if self.word_check(response.content, 'cancel'):
                                     retry = False
@@ -970,8 +1018,6 @@ class RoleGiver:
     #################################################"""
 
     async def delete(self, ctx, ras_to_delete):
-        # Timeout for response
-        timeout = 320.00
 
         # Used as validation for delete
         validation_string = ''.join(random.choices(string.ascii_lowercase + string.digits, k=5))
@@ -1004,7 +1050,7 @@ class RoleGiver:
 
         try:
             while True:
-                response = await self.bot.wait_for('message', timeout=timeout, check=message_check)
+                response = await self.bot.wait_for('message', timeout=self.timeout, check=message_check)
 
                 if self.word_check(response.content, 'cancel'):
                     await self.cancel_embed(delete_embed, delete_window, preview_window,
@@ -1101,7 +1147,6 @@ class RoleGiver:
 
     async def validate_state(self, scope='all'):
         ras_sessions_to_scan = None
-        # TODO: create validator
         if scope == 'all':
             ras_sessions_to_scan = self.ras_sessions
 
@@ -1240,7 +1285,7 @@ class RoleGiver:
         if action.type == 'REACTION_ADD':
             if action.ras.unique is True:
                 # TODO: Optimize unique RAS for speed, find out if there is faster method to send requests to discord
-                #   i.e: add_reaction(), remove_reaction, add_role(), remove_role()
+                #   i.e: add_reaction(), remove_reaction(), add_role(), remove_role()
                 # Optimization list:
                 # -Instead of reading reaction user lists from discord server, I am caching the user list locally.
                 #   response time from module 3 reduced from 1500ms-600ms to < 1ms
