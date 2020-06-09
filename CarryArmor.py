@@ -94,7 +94,7 @@ async def on_raw_reaction_remove(payload):
 
 
 # Role giver create command - Calls new RG create form
-@bot.command(name='create', help='Create a new RAS')
+@bot.command(name='create', help='Create a new RAS: c!create')
 async def create(ctx, *args):
     # start routine to create role giving message
     # Check ADMIN rights?
@@ -133,19 +133,6 @@ async def delete(ctx, *args):
         if matching_ras is not None:
             status = await role_giver.delete(ctx, matching_ras)
             print(f'Status of delete RAS session: {status}')
-
-
-@bot.command(name='dumpsessions', help='')
-async def dumpsessions(ctx, *args):
-    data = role_giver.ras_sessions
-    print(f'Overall: {data}')
-    for i in data:
-        i.print()
-
-
-@bot.command(name='ping', help='')
-async def ping(ctx, *args):
-    await ctx.send(f'Latency: {bot.latency * 1000:0.1f}ms')
 
 
 bot.run(TOKEN)

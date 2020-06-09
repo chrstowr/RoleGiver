@@ -34,6 +34,7 @@ class RoleGiver:
     create() - Routine that contains logic for the RAS (Reaction-based role Assignment System) create form.
     Helper function specific to create() will be defined under this function
     #################################################"""
+
     async def create(self, ctx):
         # Timeout for each step
 
@@ -185,9 +186,6 @@ class RoleGiver:
                                 await new_ras_session.remove_option(option_to_remove[0])
                                 # Remove reaction
                                 await ras_preview_window.remove_reaction(option_to_remove[0], self.bot.user)
-
-                                print(f'o_t_r: {options_strings}')
-                                print(f'{new_ras_session.options}')
 
                                 # update preview window
                                 option_text = self.option_text(options_strings)
@@ -476,10 +474,6 @@ class RoleGiver:
     #################################################"""
 
     async def edit(self, ctx, ras_to_edit):
-        # Timeout for each step
-
-        editing_ras = True
-
         # Build preview based on RAS message context
         preview_window = None
         preview_ras_obj = copy.copy(ras_to_edit)
@@ -487,6 +481,7 @@ class RoleGiver:
         preview_window_reactions = copy.copy(preview_ras_obj.message.reactions)
         preview_window_embed.set_footer(
             text=f'Unique={preview_ras_obj.unique} | Channel={preview_ras_obj.channel.name}')
+        roles_to_remove = list()
 
         # Make EDIT_RAS message embed, add needed fields
         edit_window = None
@@ -517,7 +512,7 @@ class RoleGiver:
             return is_author and in_correct_channel and is_correct_guild
 
         try:
-            while editing_ras is True:
+            while True:
 
                 # Update windows with Main Menu
                 edit_embed.description = f'Hello, {ctx.message.author.name}! Please choose what component you would' \
@@ -626,8 +621,17 @@ class RoleGiver:
                                 for reaction in current_message_state_ras_to_edit.reactions:
                                     match = discord.utils.find(lambda o: o['emote'] == reaction.emoji,
                                                                ras_to_edit.options)
+
                                     if match is None:
                                         await ras_to_edit.message.clear_reaction(reaction.emoji)
+
+                                # Clear roles for removed reaction
+                                for role in roles_to_remove:
+                                    guild_role = discord.utils.find(lambda r: r == role,
+                                                                    current_message_state_ras_to_edit.guild.roles)
+                                    if guild_role is not None:
+                                        for member in guild_role.members:
+                                            await member.remove_roles(role)
 
                                 # Move channel
                                 if ras_to_edit.channel is not preview_ras_obj.channel:
@@ -654,6 +658,9 @@ class RoleGiver:
                                 edit_embed.colour = discord.Colour.green()
                                 await edit_window.edit(embed=edit_embed)
 
+                                # Save session list to disk
+                                self.save_sessions_to_file()
+
                                 return self.SUCCESS
 
                     except asyncio.TimeoutError:
@@ -672,8 +679,8 @@ class RoleGiver:
                         ###################################"""
                         edit_embed.title = 'Edit RAS - Change Channel'
                         edit_embed.description = f'Hello, {ctx.message.author.name}! Please enter the channel you ' \
-                                                 f'would like to see the RAS in. \n```diff\n-THIS WILL CLEAR ALL REACTIONS ' \
-                                                 f'AND ROLES. Users must react again to regain role```'
+                                                 f'would like to see the RAS in. \n```diff\n-THIS WILL CLEAR ALL REACTIONS. ' \
+                                                 f' Roles will be maintained on move.```'
                         edit_embed.set_field_at(0, name='Example:', value='`#example_channel`', inline=False)
                         edit_embed.set_field_at(1, name='tip:', value='Type `cancel` at anytime to stop '
                                                                       '(*WILL NOT SAVE YOUR WORK*), or '
@@ -823,6 +830,9 @@ class RoleGiver:
                                                 # Remove from option list
                                                 option_to_remove = preview_ras_obj.options.pop(delete_option)
 
+                                                if option_to_remove['role'] not in roles_to_remove:
+                                                    roles_to_remove.append(option_to_remove['role'])
+
                                                 # Remove reaction
                                                 await preview_window.remove_reaction(option_to_remove['emote'],
                                                                                      self.bot.user)
@@ -850,6 +860,9 @@ class RoleGiver:
                                                     await preview_window.add_reaction(emote)
                                                     # If add reaction succeeds add to session model
                                                     await preview_ras_obj.add_option(emote, role)
+
+                                                    if role in roles_to_remove:
+                                                        roles_to_remove.remove(role)
 
                                                     option_text = self.option_text(preview_ras_obj.options,
                                                                                    format_type=1)
@@ -1062,6 +1075,16 @@ class RoleGiver:
                     # Save message id for validation
                     channel_name = ras_to_delete.message.channel.name
                     try:
+
+                        # Clear all roles
+                        for reaction in ras_to_delete.reactions:
+                            role = ras_to_delete.find_role(reaction.emoji)
+                            guild_role = discord.utils.find(lambda r: r == role,
+                                                            ras_to_delete.guild.roles)
+                            if guild_role is not None:
+                                for member in guild_role.members:
+                                    await member.remove_roles(role)
+
                         # Delete message
                         await ras_to_delete.message.delete()
                         # Delete from RAS session list
@@ -1071,7 +1094,7 @@ class RoleGiver:
 
                         # Delete preview window
                         await preview_window.delete()
-                        # TODO: Add list of what options are in confirmation
+
                         # Update create RAS form with confirmation
                         delete_embed.title = 'Delete RAS  -  :white_check_mark:'
                         delete_embed.description = f'CONFIRMATION - The RAS posted in ' \
