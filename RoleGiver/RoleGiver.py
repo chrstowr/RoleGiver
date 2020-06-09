@@ -534,11 +534,14 @@ class RoleGiver:
                 await preview_window.edit(embed=preview_window_embed)
 
                 # Add reactions
+                current_state_preview_window = await ctx.channel.fetch_message(preview_window.id)
                 for option in preview_ras_obj.options:
-                    await preview_window.add_reaction(option['emote'])
+                    match = discord.utils.find(lambda r: r.emoji == option['emote'], current_state_preview_window.reactions)
+                    print(f'1: {match}')
+                    if match is None:
+                        await preview_window.add_reaction(option['emote'])
 
                 # Remove reactions not needed
-                current_state_preview_window = await ctx.channel.fetch_message(preview_window.id)
                 for reaction in current_state_preview_window.reactions:
                     match = discord.utils.find(lambda o: o['emote'] == reaction.emoji, preview_ras_obj.options)
                     if match is None:
@@ -660,6 +663,10 @@ class RoleGiver:
 
                                 # Save session list to disk
                                 self.save_sessions_to_file()
+
+                                # Validate message
+                                message_id = ras_to_edit.message.id
+                                await self.validate_state(scope='message', id_list=[message_id])
 
                                 return self.SUCCESS
 
@@ -1168,10 +1175,20 @@ class RoleGiver:
         message - etc 
     #################################################"""
 
-    async def validate_state(self, scope='all'):
+    async def validate_state(self, scope='all', id_list=None):
         ras_sessions_to_scan = None
         if scope == 'all':
             ras_sessions_to_scan = self.ras_sessions
+        elif scope == 'message':
+            ras_sessions_to_scan = list()
+            for message_id in id_list:
+                match = discord.utils.find(lambda r: r.message.id is message_id, self.ras_sessions)
+                if match is not None:
+                    ras_sessions_to_scan.append(match)
+        elif scope == 'channel':
+            pass
+        elif scope == 'guild':
+            pass
 
         # Ensure RAS message cache matches server's current state
         for ras in ras_sessions_to_scan:

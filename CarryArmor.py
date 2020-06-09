@@ -19,13 +19,13 @@ role_giver = RoleGiver(bot)
 # TODO: Add backup system for JSON file
 
 async def action_queue_clock():
+    print(f'Ready to go!')
     while True:
         if len(role_giver.action_queue) > 0:
             await role_giver.action_queue_worker()
             await asyncio.sleep(.25)
         else:
             await asyncio.sleep(1)
-
 
 @bot.event
 async def on_ready():
