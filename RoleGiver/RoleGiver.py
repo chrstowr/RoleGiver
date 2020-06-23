@@ -11,6 +11,7 @@ from collections import deque
 from json import JSONDecodeError
 from pathlib import Path
 from RoleGiver.Models.RASModels import RoleGiverSession, QueueItem
+from RoleGiver.Services.CreateFormServices import CreateForm
 
 
 class RoleGiver:
@@ -23,7 +24,9 @@ class RoleGiver:
         self.TIMEOUT = 4
         self.timeout = 320.00
 
+        # Holds currently active RAS sessions
         self.ras_sessions = list()
+
         # Holds queue action items to execute role adds or removals
         self.action_queue = deque()
 
@@ -34,405 +37,426 @@ class RoleGiver:
     create() - Routine that contains logic for the RAS (Reaction-based role Assignment System) create form.
     Helper function specific to create() will be defined under this function
     #################################################"""
-
-    async def create(self, ctx):
-        # Timeout for each step
-
-        # Initialize needed variables
-        ras_preview_window = None
-        new_ras_session = RoleGiverSession()
-        new_ras_session_embed = discord.Embed()
-        new_ras_session_embed.colour = discord.Colour.default()
-
-        # Make CREATE_RAS message embed, add needed fields
-        create_ras_window = None
-        create_embed = discord.Embed()
-        create_embed.colour = discord.Colour.blue()
-        create_embed.title = 'Create RAS'  # Never changes, title of message
-        create_embed.description = 'N/A'  # Message block used by bot
-        create_embed.add_field(name='tip:', value='Type `cancel` at anytime to stop', inline=False)  # tips
-
-        # Steps in order to create new RAS message:
-        """###################################
-        # Ask for channel/guild
-        ###################################"""
-        """
-        para: create_ras_window, create_embed, ras_preview_window, new_ras_session, new_ras_session_embed, timeout=320
-        """
-        create_embed.title = 'Create RAS - Step 1/?'
-        create_embed.description = f'Hello, {ctx.message.author.name}! Please enter the channel you would like to' \
-                                   f' create an RAS in.'
-        create_embed.insert_field_at(0, name='Example:', value='`#example_channel`', inline=False)
-        create_ras_window = await ctx.send(embed=create_embed)
-        ras_preview_window = await ctx.send('Preview:\n', embed=new_ras_session_embed)
-
-        # Wait for response from author
-        # message_check() used to check if author responded in correct channel
-        def message_check(message):
-            is_author = message.author == ctx.message.author
-            in_correct_channel = message.channel == ctx.message.channel
-            return is_author and in_correct_channel
-
-        try:
-            retry = True
-            while retry is True:
-                response = await self.bot.wait_for('message', timeout=self.timeout, check=message_check)
-                if self.word_check(response.content, 'cancel'):
-                    await self.cancel_embed(create_embed, create_ras_window, ras_preview_window,
-                                            title='Create RAS :warning:',
-                                            text='This create RAS sessions was cancelled, use the create command'
-                                                 ' again to start another session.')
-                    return self.CANCEL
-                elif len(response.channel_mentions) > 0:
-                    if response.channel_mentions[0] in ctx.message.guild.channels:
-                        channel = self.bot.get_channel(response.channel_mentions[0].id)
-                        if channel is not None:
-                            new_ras_session.channel = channel
-                            new_ras_session.guild = channel.guild
-                            retry = False
-                        else:
-                            await ctx.send('Unable to verify channel')
-                else:
-                    await ctx.send('Unable to verify channel')
-
-        except asyncio.TimeoutError:
-
-            await self.timeout_embed(create_embed, create_ras_window, ras_preview_window,
-                                     title='Create RAS :octagonal_sign:',
-                                     text='This Create RAS session has timed out, please use the \'c!create\' command '
-                                          'again ')
-            return self.TIMEOUT
-
-        """###################################
-        # Ask for title and description 
-        ###################################"""
-
-        # Change create RAS window
-
-        create_embed.title = 'Create RAS - Step 2/?'
-        create_embed.description = f'{ctx.message.author.name}, please type out the titles and description using ' \
-                                   f'this format: [title]|[description] '
-        create_embed.set_field_at(0, name='Example:', value='`Test Title|This is a test description for a new RAS.`',
-                                  inline=False)
-        await create_ras_window.edit(embed=create_embed)
-
-        # Wait for response from author
-        # see message_check() in step 2
-        try:
-            retry = True
-            while retry is True:
-                response = await self.bot.wait_for('message', timeout=self.timeout, check=message_check)
-                if self.word_check(response.content, 'cancel'):
-                    await self.cancel_embed(create_embed, create_ras_window, ras_preview_window,
-                                            title='Create RAS :warning:',
-                                            text='This create RAS sessions was cancelled, use the create command'
-                                                 ' again to start another session.')
-                    return self.CANCEL
-                elif self.verify_title_desc(response.content):
-                    retry = False
-                    items = response.content.split('|')
-                    new_ras_session_embed.title = items[0].strip()
-                    new_ras_session_embed.description = items[1].strip()
-                    await ras_preview_window.edit(embed=new_ras_session_embed)
-                else:
-                    await ctx.send('Invalid format detected, please look at example above.')
-
-        except asyncio.TimeoutError:
-            await self.timeout_embed(create_embed, create_ras_window, ras_preview_window,
-                                     title='Create RAS :octagonal_sign:',
-                                     text='This Create RAS session has timed out, please use the \'c!create\' command '
-                                          'again ')
-            return self.TIMEOUT
-
-        """###################################
-         # Ask for for emote and matching role
-        ###################################"""
-        # Change create RAS window
-        create_embed.title = 'Create RAS - Step 3/?'
-        create_embed.description = f'{ctx.message.author.name}, please list out the reaction/roles you would like to ' \
-                                   f'add: \n[:the_emote:]\' \'[@role]. To delete a line type \'del [int]\''
-        create_embed.set_field_at(0, name='Example:', value='`:warning: @spoiler_squad`\n`del 1`',
-                                  inline=False)
-        create_embed.set_field_at(1, name='tip:', value='Type `cancel` at anytime to stop, `done` when you are done',
-                                  inline=False)
-        new_ras_session_embed.add_field(name='Current options:', value='None', inline=False)
-        await create_ras_window.edit(embed=create_embed)
-
-        # Wait for response from author
-        # see message_check() in step 2
-        try:
-            retry = True
-            options_strings = ['(This will not display on final published RAS)\n']
-            while retry is True:
-                response = await self.bot.wait_for('message', timeout=self.timeout, check=message_check)
-                if self.word_check(response.content, 'cancel'):  # Check for 'cancel'
-                    await self.cancel_embed(create_embed, create_ras_window, ras_preview_window,
-                                            title='Create RAS :warning:',
-                                            text='This create RAS sessions was cancelled, use the create command'
-                                                 ' again to start another session.')
-                    return self.CANCEL
-                elif self.word_check(response.content, 'del'):
-                    # Get first argument after delete
-                    arg = response.content.strip(' ').split(' ')
-                    if len(arg) > 1:
-                        arg = arg[1].strip(' ')
-                        # Check if is int
-                        if self.is_int(arg) is True:
-                            delete_option = int(arg)
-                            if 0 < delete_option < len(options_strings):
-                                # Remove from option list
-                                option_to_remove = options_strings.pop(delete_option)
-                                # Remove from RAS
-                                await new_ras_session.remove_option(option_to_remove[0])
-                                # Remove reaction
-                                await ras_preview_window.remove_reaction(option_to_remove[0], self.bot.user)
-
-                                # update preview window
-                                option_text = self.option_text(options_strings)
-                                new_ras_session_embed.set_field_at(0,
-                                                                   name='\nCurrent options:',
-                                                                   value=option_text, inline=False)
-                                # Update option list in preview window
-                                await ras_preview_window.edit(embed=new_ras_session_embed)
-
-                elif self.word_check(response.content, 'done'):  # Check for 'done'
-                    retry = False
-
-                    # Change create window tip back to basic message
-                    create_embed.set_field_at(1, name='tip:',
-                                              value='Type `cancel` at anytime to stop', inline=False)
-                    # Remove preview of options from RAS preview
-                    new_ras_session_embed.remove_field(0)
-                    # Update preview window
-                    await ras_preview_window.edit(embed=new_ras_session_embed)
-                else:
-                    # Make sure role mention is detected and get first one
-                    if len(response.role_mentions) > 0:
-                        items = response.content.split(' ')
-                        emote = items[0]  # Get emote text
-                        role = response.role_mentions[0]  # Get first role
-                        # Check if role is valid
-                        if role in ctx.message.guild.roles:
-                            # Check if that is being inserted already exists in session
-                            result = [i for i in new_ras_session.options if i['role'] == role]
-                            if len(result) < 1:
-                                try:
-                                    # Try to add emote, if there is an exception, the emote is invalid
-                                    await ras_preview_window.add_reaction(emote)
-                                    # If add reaction succeeds add to session model
-                                    await new_ras_session.add_option(emote, role)
-                                    # Update option list
-                                    options_strings.append([emote, role])
-                                    option_text = self.option_text(options_strings)
-                                    new_ras_session_embed.set_field_at(0,
-                                                                       name='\nCurrent options:',
-                                                                       value=option_text, inline=False)
-                                    # Update option list in preview window
-                                    await ras_preview_window.edit(embed=new_ras_session_embed)
-                                except discord.HTTPException:
-                                    await ctx.send('ERROR: Emoji is invalid')
-                                except discord.DiscordException as e:
-                                    print(e)
-                            else:
-                                await ctx.send('ERROR: An option already exists with that role')
-                        else:
-                            await ctx.send('ERROR: Could not validate role')
-                    # Assume you want to add action with no role attached
-                    elif len(response.role_mentions) < 1:
-                        emote = response.content.strip(' ')
-                        try:
-                            # Try to add emote, if there is an exception, the emote is invalid
-                            await ras_preview_window.add_reaction(emote)
-                            # If add reaction succeeds add to session model
-                            await new_ras_session.add_option(emote, None)
-                            # Update option list
-                            options_strings.append([emote, 'N/A'])
-                            option_text = self.option_text(options_strings)
-                            new_ras_session_embed.set_field_at(0,
-                                                               name='\nCurrent options:',
-                                                               value=option_text, inline=False)
-                            # Update option list in preview window
-                            await ras_preview_window.edit(embed=new_ras_session_embed)
-                        except discord.HTTPException:
-                            await ctx.send('ERROR: Emoji is invalid')
-                        except discord.DiscordException as e:
-                            print(e)
-                    # else:
-                    #     await ctx.send('ERROR: Invalid format detected, please look at example above.')
-        except asyncio.TimeoutError:
-            await self.timeout_embed(create_embed, create_ras_window, ras_preview_window,
-                                     title='Create RAS :octagonal_sign:',
-                                     text='This Create RAS session has timed out, please use the \'c!create\' command '
-                                          'again ')
-            return self.TIMEOUT
-
-        """############################################
-        # Ask for Unique option
-        ############################################"""
-        # Change create RAS window
-        create_embed.title = 'Create RAS - Step 4/?'
-        create_embed.description = f'{ctx.message.author.name}, Do you want the roles to be unique? (yes/no)'
-        create_embed.set_field_at(0, name='Example:',
-                                  value='Yes - Only one role will be assigned at a time\nNo - Multiple Roles can be '
-                                        'assigned from this RAS',
-                                  inline=False)
-        await create_ras_window.edit(embed=create_embed)
-
-        # Wait for response from author
-        # see message_check() in step 2
-        try:
-            retry = True
-            while retry is True:
-                response = await self.bot.wait_for('message', timeout=self.timeout, check=message_check)
-                if self.word_check(response.content, 'cancel'):
-                    await self.cancel_embed(create_embed, create_ras_window, ras_preview_window,
-                                            title='Create RAS :warning:',
-                                            text='This create RAS sessions was cancelled, use the create command'
-                                                 ' again to start another session.')
-                    return self.CANCEL
-                elif self.word_check(response.content, 'yes') or self.word_check(response.content, 'no'):
-                    retry = False
-                    if self.word_check(response.content, 'yes'):
-                        new_ras_session.unique = True
-                        new_ras_session_embed.set_footer(text=f'Unique={True}')
-                    elif self.word_check(response.content, 'no'):
-                        new_ras_session.unique = False
-                        new_ras_session_embed.set_footer(text=f'Unique={False}')
-                    await ras_preview_window.edit(embed=new_ras_session_embed)
-                else:
-                    await ctx.send('Invalid format detected, please look at example above.')
-
-        except asyncio.TimeoutError:
-            await self.timeout_embed(create_embed, create_ras_window, ras_preview_window,
-                                     title='Create RAS :octagonal_sign:',
-                                     text='This Create RAS session has timed out, please use the \'c!create\' command '
-                                          'again ')
-            return self.TIMEOUT
-
-        """############################################
-        # Color
-        ############################################"""
-        # Change create RAS window
-        create_embed.title = 'Create RAS - Step 6/?'
-        create_embed.description = f'{ctx.message.author.name}, please choose the color you want to associate with ' \
-                                   f'this RAS in this format `[0-255],[0-255],[0-255]` See tip for example.'
-        create_embed.set_field_at(0, name='Example:', value='`255,255,255`',
-                                  inline=False)
-        create_embed.set_field_at(1, name='tip:', value='Type `cancel` at anytime to stop, `done` when you are done',
-                                  inline=False)
-        current_color = new_ras_session_embed.colour
-        new_ras_session_embed.add_field(name='Current color:',
-                                        value=f'{current_color.to_rgb()}', inline=False)
-
-        await create_ras_window.edit(embed=create_embed)
-        await ras_preview_window.edit(embed=new_ras_session_embed)
-
-        # Wait for response from author
-        # see message_check() in step 2
-        try:
-            retry = True
-            while retry is True:
-                response = await self.bot.wait_for('message', timeout=self.timeout, check=message_check)
-                if self.word_check(response.content, 'cancel'):  # Check for 'cancel'
-                    await self.cancel_embed(create_embed, create_ras_window, ras_preview_window,
-                                            title='Create RAS :warning:',
-                                            text='This create RAS sessions was cancelled, use the create command'
-                                                 ' again to start another session.')
-                    return self.CANCEL
-                elif self.word_check(response.content, 'done'):  # Check for 'done'
-                    retry = False
-
-                    # Change create window tip back to basic message
-                    create_embed.set_field_at(1, name='tip:',
-                                              value='Type `cancel` at anytime to stop', inline=False)
-                    # Remove preview of options from RAS preview
-                    new_ras_session_embed.remove_field(0)
-                    # Update preview window
-                    await ras_preview_window.edit(embed=new_ras_session_embed)
-                else:
-                    new_color = self.color_atlas(response)
-                    if new_color is not None:
-                        new_ras_session_embed.colour = new_color
-
-                        new_ras_session_embed.set_field_at(0,
-                                                           name='\nCurrent color:',
-                                                           value=new_color.to_rgb(), inline=False)
-                        await ras_preview_window.edit(embed=new_ras_session_embed)
-
-        except asyncio.TimeoutError:
-            await self.timeout_embed(create_embed, create_ras_window, ras_preview_window,
-                                     title='Create RAS :octagonal_sign:',
-                                     text='This Create RAS session has timed out, please use the \'c!create\' command '
-                                          'again ')
-            return self.TIMEOUT
-
-        """############################################
-        # Publish
-        ############################################"""
-        # Change create RAS window
-        create_embed.title = 'Create RAS - Step 7/?'
-        create_embed.description = f'{ctx.message.author.name},please confirm the preview below, then type `publish` ' \
-                                   f'or `cancel`'
-        create_embed.clear_fields()
-        await create_ras_window.edit(embed=create_embed)
-
-        # Wait for response from author
-        # see message_check() in step 2
-        try:
-            retry = True
-            while retry is True:
-                response = await self.bot.wait_for('message', timeout=self.timeout, check=message_check)
-                if self.word_check(response.content, 'cancel'):  # Listen for 'cancel'
-                    await self.cancel_embed(create_embed, create_ras_window, ras_preview_window,
-                                            title='Create RAS :warning:',
-                                            text='This create RAS sessions was cancelled, use the create command'
-                                                 ' again to start another session.')
-                    return self.CANCEL
-                elif self.word_check(response.content, 'publish'):  # Listen for 'publish'
-                    retry = False
-                    # Publish to requested channel
-                    published_context = await new_ras_session.channel.send(embed=new_ras_session_embed)
-
-                    # Add published message context to tracking
-                    new_ras_session.message = published_context
-
-                    # Add reactions to publish RAS
-                    for option in new_ras_session.options:
-                        await published_context.add_reaction(option['emote'])
-
-                    # Delete preview window
-                    await ras_preview_window.delete()
-                    # TODO: Add list of what options are in confirmation
-                    # Update create RAS form with confirmation
-                    create_embed.title = 'Create RAS  -  :white_check_mark:'
-                    create_embed.description = f'CONFIRMATION - The new RAS has been posted in ' \
-                                               f'#{new_ras_session.channel}. If you would like to edit this RAS, you can' \
-                                               f' use [coming soon :)] '
-                    create_embed.colour = discord.Colour.green()
-                    await create_ras_window.edit(embed=create_embed)
-                else:
-                    await ctx.send('Invalid format detected, please look at example above.')
-        except asyncio.TimeoutError:
-            await self.timeout_embed(create_embed, create_ras_window, ras_preview_window,
-                                     title='Create RAS :octagonal_sign:',
-                                     text='This Create RAS session has timed out, please use the \'c!create\' command '
-                                          'again ')
-            return self.TIMEOUT
-
-        # Save new RAS to memory
-        self.ras_sessions.append(new_ras_session)
-
-        # Save session list to disk with new addition
-        self.save_sessions_to_file()
-
-        # End routine
-        return self.SUCCESS
+    # async def create(self, ctx):
+    #     # Timeout for each step
+    #
+    #     # Initialize needed variables
+    #     ras_preview_window = None
+    #     new_ras_session = RoleGiverSession()
+    #     new_ras_session_embed = discord.Embed()
+    #     new_ras_session_embed.colour = discord.Colour.default()
+    #
+    #     # Make CREATE_RAS message embed, add needed fields
+    #     create_ras_window = None
+    #     create_embed = discord.Embed()
+    #     create_embed.colour = discord.Colour.blue()
+    #     create_embed.title = 'Create RAS'  # Never changes, title of message
+    #     create_embed.description = 'N/A'  # Message block used by bot
+    #     create_embed.add_field(name='tip:', value='Type `cancel` at anytime to stop', inline=False)  # tips
+    #
+    #     # Steps in order to create new RAS message:
+    #     """###################################
+    #     # Ask for channel/guild
+    #     ###################################"""
+    #     """
+    #     para: create_ras_window, create_embed, ras_preview_window, new_ras_session, new_ras_session_embed, timeout=320
+    #     """
+    #     create_embed.title = 'Create RAS - Step 1/?'
+    #     create_embed.description = f'Hello, {ctx.message.author.name}! Please enter the channel you would like to' \
+    #                                f' create an RAS in.'
+    #     create_embed.insert_field_at(0, name='Example:', value='`#example_channel`', inline=False)
+    #     create_ras_window = await ctx.send(embed=create_embed)
+    #     ras_preview_window = await ctx.send('Preview:\n', embed=new_ras_session_embed)
+    #
+    #     # Wait for response from author
+    #     # message_check() used to check if author responded in correct channel
+    #     def message_check(message):
+    #         is_author = message.author == ctx.message.author
+    #         in_correct_channel = message.channel == ctx.message.channel
+    #         return is_author and in_correct_channel
+    #
+    #     try:
+    #         retry = True
+    #         while retry is True:
+    #             response = await self.bot.wait_for('message', timeout=self.timeout, check=message_check)
+    #             if self.word_check(response.content, 'cancel'):
+    #                 await self.cancel_embed(create_embed, create_ras_window, ras_preview_window,
+    #                                         title='Create RAS :warning:',
+    #                                         text='This create RAS sessions was cancelled, use the create command'
+    #                                              ' again to start another session.')
+    #                 return self.CANCEL
+    #             elif len(response.channel_mentions) > 0:
+    #                 if response.channel_mentions[0] in ctx.message.guild.channels:
+    #                     channel = self.bot.get_channel(response.channel_mentions[0].id)
+    #                     if channel is not None:
+    #                         new_ras_session.channel = channel
+    #                         new_ras_session.guild = channel.guild
+    #                         retry = False
+    #                     else:
+    #                         await ctx.send('Unable to verify channel')
+    #             else:
+    #                 await ctx.send('Unable to verify channel')
+    #
+    #     except asyncio.TimeoutError:
+    #
+    #         await self.timeout_embed(create_embed, create_ras_window, ras_preview_window,
+    #                                  title='Create RAS :octagonal_sign:',
+    #                                  text='This Create RAS session has timed out, please use the \'c!create\' command '
+    #                                       'again ')
+    #         return self.TIMEOUT
+    #
+    #     """###################################
+    #     # Ask for title and description
+    #     ###################################"""
+    #
+    #     # Change create RAS window
+    #
+    #     create_embed.title = 'Create RAS - Step 2/?'
+    #     create_embed.description = f'{ctx.message.author.name}, please type out the titles and description using ' \
+    #                                f'this format: [title]|[description] '
+    #     create_embed.set_field_at(0, name='Example:', value='`Test Title|This is a test description for a new RAS.`',
+    #                               inline=False)
+    #     await create_ras_window.edit(embed=create_embed)
+    #
+    #     # Wait for response from author
+    #     # see message_check() in step 2
+    #     try:
+    #         retry = True
+    #         while retry is True:
+    #             response = await self.bot.wait_for('message', timeout=self.timeout, check=message_check)
+    #             if self.word_check(response.content, 'cancel'):
+    #                 await self.cancel_embed(create_embed, create_ras_window, ras_preview_window,
+    #                                         title='Create RAS :warning:',
+    #                                         text='This create RAS sessions was cancelled, use the create command'
+    #                                              ' again to start another session.')
+    #                 return self.CANCEL
+    #             elif self.verify_title_desc(response.content):
+    #                 retry = False
+    #                 items = response.content.split('|')
+    #                 new_ras_session_embed.title = items[0].strip()
+    #                 new_ras_session_embed.description = items[1].strip()
+    #                 await ras_preview_window.edit(embed=new_ras_session_embed)
+    #             else:
+    #                 await ctx.send('Invalid format detected, please look at example above.')
+    #
+    #     except asyncio.TimeoutError:
+    #         await self.timeout_embed(create_embed, create_ras_window, ras_preview_window,
+    #                                  title='Create RAS :octagonal_sign:',
+    #                                  text='This Create RAS session has timed out, please use the \'c!create\' command '
+    #                                       'again ')
+    #         return self.TIMEOUT
+    #
+    #     """###################################
+    #      # Ask for for emote and matching role
+    #     ###################################"""
+    #     # Change create RAS window
+    #     create_embed.title = 'Create RAS - Step 3/?'
+    #     create_embed.description = f'{ctx.message.author.name}, please list out the reaction/roles you would like to ' \
+    #                                f'add: \n[:the_emote:]\' \'[@role]. To delete a line type \'del [int]\''
+    #     create_embed.set_field_at(0, name='Example:', value='`:warning: @spoiler_squad`\n`del 1`',
+    #                               inline=False)
+    #     create_embed.set_field_at(1, name='tip:', value='Type `cancel` at anytime to stop, `done` when you are done',
+    #                               inline=False)
+    #     new_ras_session_embed.add_field(name='Current options:', value='None', inline=False)
+    #     await create_ras_window.edit(embed=create_embed)
+    #
+    #     # Wait for response from author
+    #     # see message_check() in step 2
+    #     try:
+    #         retry = True
+    #         options_strings = ['(This will not display on final published RAS)\n']
+    #         while retry is True:
+    #             response = await self.bot.wait_for('message', timeout=self.timeout, check=message_check)
+    #             if self.word_check(response.content, 'cancel'):  # Check for 'cancel'
+    #                 await self.cancel_embed(create_embed, create_ras_window, ras_preview_window,
+    #                                         title='Create RAS :warning:',
+    #                                         text='This create RAS sessions was cancelled, use the create command'
+    #                                              ' again to start another session.')
+    #                 return self.CANCEL
+    #             elif self.word_check(response.content, 'del'):
+    #                 # Get first argument after delete
+    #                 arg = response.content.strip(' ').split(' ')
+    #                 if len(arg) > 1:
+    #                     arg = arg[1].strip(' ')
+    #                     # Check if is int
+    #                     if self.is_int(arg) is True:
+    #                         delete_option = int(arg)
+    #                         if 0 < delete_option < len(options_strings):
+    #                             # Remove from option list
+    #                             option_to_remove = options_strings.pop(delete_option)
+    #                             # Remove from RAS
+    #                             await new_ras_session.remove_option(option_to_remove[0])
+    #                             # Remove reaction
+    #                             await ras_preview_window.remove_reaction(option_to_remove[0], self.bot.user)
+    #
+    #                             # update preview window
+    #                             option_text = self.option_text(options_strings)
+    #                             new_ras_session_embed.set_field_at(0,
+    #                                                                name='\nCurrent options:',
+    #                                                                value=option_text, inline=False)
+    #                             # Update option list in preview window
+    #                             await ras_preview_window.edit(embed=new_ras_session_embed)
+    #
+    #             elif self.word_check(response.content, 'done'):  # Check for 'done'
+    #                 retry = False
+    #
+    #                 # Change create window tip back to basic message
+    #                 create_embed.set_field_at(1, name='tip:',
+    #                                           value='Type `cancel` at anytime to stop', inline=False)
+    #                 # Remove preview of options from RAS preview
+    #                 new_ras_session_embed.remove_field(0)
+    #                 # Update preview window
+    #                 await ras_preview_window.edit(embed=new_ras_session_embed)
+    #             else:
+    #                 # Make sure role mention is detected and get first one
+    #                 if len(response.role_mentions) > 0:
+    #                     items = response.content.split(' ')
+    #                     emote = items[0]  # Get emote text
+    #                     role = response.role_mentions[0]  # Get first role
+    #                     # Check if role is valid
+    #                     if role in ctx.message.guild.roles:
+    #                         # Check if that is being inserted already exists in session
+    #                         result = [i for i in new_ras_session.options if i['role'] == role]
+    #                         if len(result) < 1:
+    #                             try:
+    #                                 # Try to add emote, if there is an exception, the emote is invalid
+    #                                 await ras_preview_window.add_reaction(emote)
+    #                                 # If add reaction succeeds add to session model
+    #                                 await new_ras_session.add_option(emote, role)
+    #                                 # Update option list
+    #                                 options_strings.append([emote, role])
+    #                                 option_text = self.option_text(options_strings)
+    #                                 new_ras_session_embed.set_field_at(0,
+    #                                                                    name='\nCurrent options:',
+    #                                                                    value=option_text, inline=False)
+    #                                 # Update option list in preview window
+    #                                 await ras_preview_window.edit(embed=new_ras_session_embed)
+    #                             except discord.HTTPException:
+    #                                 await ctx.send('ERROR: Emoji is invalid')
+    #                             except discord.DiscordException as e:
+    #                                 print(e)
+    #                         else:
+    #                             await ctx.send('ERROR: An option already exists with that role')
+    #                     else:
+    #                         await ctx.send('ERROR: Could not validate role')
+    #                 # Assume you want to add action with no role attached
+    #                 elif len(response.role_mentions) < 1:
+    #                     emote = response.content.strip(' ')
+    #                     try:
+    #                         # Try to add emote, if there is an exception, the emote is invalid
+    #                         await ras_preview_window.add_reaction(emote)
+    #                         # If add reaction succeeds add to session model
+    #                         await new_ras_session.add_option(emote, None)
+    #                         # Update option list
+    #                         options_strings.append([emote, 'N/A'])
+    #                         option_text = self.option_text(options_strings)
+    #                         new_ras_session_embed.set_field_at(0,
+    #                                                            name='\nCurrent options:',
+    #                                                            value=option_text, inline=False)
+    #                         # Update option list in preview window
+    #                         await ras_preview_window.edit(embed=new_ras_session_embed)
+    #                     except discord.HTTPException:
+    #                         await ctx.send('ERROR: Emoji is invalid')
+    #                     except discord.DiscordException as e:
+    #                         print(e)
+    #                 # else:
+    #                 #     await ctx.send('ERROR: Invalid format detected, please look at example above.')
+    #     except asyncio.TimeoutError:
+    #         await self.timeout_embed(create_embed, create_ras_window, ras_preview_window,
+    #                                  title='Create RAS :octagonal_sign:',
+    #                                  text='This Create RAS session has timed out, please use the \'c!create\' command '
+    #                                       'again ')
+    #         return self.TIMEOUT
+    #
+    #     """############################################
+    #     # Ask for Unique option
+    #     ############################################"""
+    #     # Change create RAS window
+    #     create_embed.title = 'Create RAS - Step 4/?'
+    #     create_embed.description = f'{ctx.message.author.name}, Do you want the roles to be unique? (yes/no)'
+    #     create_embed.set_field_at(0, name='Example:',
+    #                               value='Yes - Only one role will be assigned at a time\nNo - Multiple Roles can be '
+    #                                     'assigned from this RAS',
+    #                               inline=False)
+    #     await create_ras_window.edit(embed=create_embed)
+    #
+    #     # Wait for response from author
+    #     # see message_check() in step 2
+    #     try:
+    #         retry = True
+    #         while retry is True:
+    #             response = await self.bot.wait_for('message', timeout=self.timeout, check=message_check)
+    #             if self.word_check(response.content, 'cancel'):
+    #                 await self.cancel_embed(create_embed, create_ras_window, ras_preview_window,
+    #                                         title='Create RAS :warning:',
+    #                                         text='This create RAS sessions was cancelled, use the create command'
+    #                                              ' again to start another session.')
+    #                 return self.CANCEL
+    #             elif self.word_check(response.content, 'yes') or self.word_check(response.content, 'no'):
+    #                 retry = False
+    #                 if self.word_check(response.content, 'yes'):
+    #                     new_ras_session.unique = True
+    #                     new_ras_session_embed.set_footer(text=f'Unique={True}')
+    #                 elif self.word_check(response.content, 'no'):
+    #                     new_ras_session.unique = False
+    #                     new_ras_session_embed.set_footer(text=f'Unique={False}')
+    #                 await ras_preview_window.edit(embed=new_ras_session_embed)
+    #             else:
+    #                 await ctx.send('Invalid format detected, please look at example above.')
+    #
+    #     except asyncio.TimeoutError:
+    #         await self.timeout_embed(create_embed, create_ras_window, ras_preview_window,
+    #                                  title='Create RAS :octagonal_sign:',
+    #                                  text='This Create RAS session has timed out, please use the \'c!create\' command '
+    #                                       'again ')
+    #         return self.TIMEOUT
+    #
+    #     """############################################
+    #     # Color
+    #     ############################################"""
+    #     # Change create RAS window
+    #     create_embed.title = 'Create RAS - Step 6/?'
+    #     create_embed.description = f'{ctx.message.author.name}, please choose the color you want to associate with ' \
+    #                                f'this RAS in this format `[0-255],[0-255],[0-255]` See tip for example.'
+    #     create_embed.set_field_at(0, name='Example:', value='`255,255,255`',
+    #                               inline=False)
+    #     create_embed.set_field_at(1, name='tip:', value='Type `cancel` at anytime to stop, `done` when you are done',
+    #                               inline=False)
+    #     current_color = new_ras_session_embed.colour
+    #     new_ras_session_embed.add_field(name='Current color:',
+    #                                     value=f'{current_color.to_rgb()}', inline=False)
+    #
+    #     await create_ras_window.edit(embed=create_embed)
+    #     await ras_preview_window.edit(embed=new_ras_session_embed)
+    #
+    #     # Wait for response from author
+    #     # see message_check() in step 2
+    #     try:
+    #         retry = True
+    #         while retry is True:
+    #             response = await self.bot.wait_for('message', timeout=self.timeout, check=message_check)
+    #             if self.word_check(response.content, 'cancel'):  # Check for 'cancel'
+    #                 await self.cancel_embed(create_embed, create_ras_window, ras_preview_window,
+    #                                         title='Create RAS :warning:',
+    #                                         text='This create RAS sessions was cancelled, use the create command'
+    #                                              ' again to start another session.')
+    #                 return self.CANCEL
+    #             elif self.word_check(response.content, 'done'):  # Check for 'done'
+    #                 retry = False
+    #
+    #                 # Change create window tip back to basic message
+    #                 create_embed.set_field_at(1, name='tip:',
+    #                                           value='Type `cancel` at anytime to stop', inline=False)
+    #                 # Remove preview of options from RAS preview
+    #                 new_ras_session_embed.remove_field(0)
+    #                 # Update preview window
+    #                 await ras_preview_window.edit(embed=new_ras_session_embed)
+    #             else:
+    #                 new_color = self.color_atlas(response)
+    #                 if new_color is not None:
+    #                     new_ras_session_embed.colour = new_color
+    #
+    #                     new_ras_session_embed.set_field_at(0,
+    #                                                        name='\nCurrent color:',
+    #                                                        value=new_color.to_rgb(), inline=False)
+    #                     await ras_preview_window.edit(embed=new_ras_session_embed)
+    #
+    #     except asyncio.TimeoutError:
+    #         await self.timeout_embed(create_embed, create_ras_window, ras_preview_window,
+    #                                  title='Create RAS :octagonal_sign:',
+    #                                  text='This Create RAS session has timed out, please use the \'c!create\' command '
+    #                                       'again ')
+    #         return self.TIMEOUT
+    #
+    #     """############################################
+    #     # Publish
+    #     ############################################"""
+    #     # Change create RAS window
+    #     create_embed.title = 'Create RAS - Step 7/?'
+    #     create_embed.description = f'{ctx.message.author.name},please confirm the preview below, then type `publish` ' \
+    #                                f'or `cancel`'
+    #     create_embed.clear_fields()
+    #     await create_ras_window.edit(embed=create_embed)
+    #
+    #     # Wait for response from author
+    #     # see message_check() in step 2
+    #     try:
+    #         retry = True
+    #         while retry is True:
+    #             response = await self.bot.wait_for('message', timeout=self.timeout, check=message_check)
+    #             if self.word_check(response.content, 'cancel'):  # Listen for 'cancel'
+    #                 await self.cancel_embed(create_embed, create_ras_window, ras_preview_window,
+    #                                         title='Create RAS :warning:',
+    #                                         text='This create RAS sessions was cancelled, use the create command'
+    #                                              ' again to start another session.')
+    #                 return self.CANCEL
+    #             elif self.word_check(response.content, 'publish'):  # Listen for 'publish'
+    #                 retry = False
+    #                 # Publish to requested channel
+    #                 published_context = await new_ras_session.channel.send(embed=new_ras_session_embed)
+    #
+    #                 # Add published message context to tracking
+    #                 new_ras_session.message = published_context
+    #
+    #                 # Add reactions to publish RAS
+    #                 for option in new_ras_session.options:
+    #                     await published_context.add_reaction(option['emote'])
+    #
+    #                 # Delete preview window
+    #                 await ras_preview_window.delete()
+    #                 # TODO: Add list of what options are in confirmation
+    #                 # Update create RAS form with confirmation
+    #                 create_embed.title = 'Create RAS  -  :white_check_mark:'
+    #                 create_embed.description = f'CONFIRMATION - The new RAS has been posted in ' \
+    #                                            f'#{new_ras_session.channel}. If you would like to edit this RAS, you can' \
+    #                                            f' use [coming soon :)] '
+    #                 create_embed.colour = discord.Colour.green()
+    #                 await create_ras_window.edit(embed=create_embed)
+    #             else:
+    #                 await ctx.send('Invalid format detected, please look at example above.')
+    #     except asyncio.TimeoutError:
+    #         await self.timeout_embed(create_embed, create_ras_window, ras_preview_window,
+    #                                  title='Create RAS :octagonal_sign:',
+    #                                  text='This Create RAS session has timed out, please use the \'c!create\' command '
+    #                                       'again ')
+    #         return self.TIMEOUT
+    #
+    #     # Save new RAS to memory
+    #     self.ras_sessions.append(new_ras_session)
+    #
+    #     # Save session list to disk with new addition
+    #     self.save_sessions_to_file()
+    #
+    #     # End routine
+    #     return self.SUCCESS
 
     ####################
     # create() helpers #
     ####################
 
     # Parses options and returns string of options
+    # format_type 0 does not account for a NONE type role
+
+    async def create(self, ctx):
+        # Intialize create form object with context, bot handle, and ras_session reference
+        createform = CreateForm(ctx, self.bot, self.ras_sessions)
+        # Add steps
+        createform.add_step(createform.get_channel)
+        createform.add_step(createform.get_title_desc)
+        createform.add_step(createform.get_emote_role)
+        createform.add_step(createform.get_unique_flag)
+        createform.add_step(createform.get_color)
+        createform.add_step(createform.publish)
+        # Run form
+        form_result = await createform.run()
+        # Handle result
+        if form_result is self.SUCCESS:
+            self.save_sessions_to_file()
+            return self.SUCCESS
+        else:
+            return form_result
+
+
     @staticmethod
     def option_text(options, format_type=0):
         if format_type == 0:
@@ -1084,7 +1108,7 @@ class RoleGiver:
                     try:
 
                         # Clear all roles
-                        for reaction in ras_to_delete.reactions:
+                        for reaction in ras_to_delete.message.reactions:
                             role = ras_to_delete.find_role(reaction.emoji)
                             guild_role = discord.utils.find(lambda r: r == role,
                                                             ras_to_delete.guild.roles)
