@@ -5,6 +5,8 @@ import discord
 from RoleGiver.Models.RASModels import RoleGiverSession
 from RoleGiver.Services.GeneralServices import RGServices
 from RoleGiver.Views.DiscordEmbeds import RGEmbeds
+from RoleGiver.Models.StatusEnum import Status
+
 
 class CreateForm:
 
@@ -12,10 +14,6 @@ class CreateForm:
         self.ctx = ctx
         self.bot = bot
         self.ras_sessions = ras_sessions
-        self.SUCCESS = 0
-        self.FAILURE = 1
-        self.CANCEL = 2
-        self.TIMEOUT = 4
         self.timeout = 320.00
 
         # Variables for the new RAS session
@@ -46,10 +44,10 @@ class CreateForm:
     async def run(self):
         for func in self.form_queue:
             result = await func()
-            if result is not self.SUCCESS:
+            if result is not Status.SUCCESS:
                 return result
 
-        return self.SUCCESS
+        return Status.SUCCESS
 
     async def get_channel(self):
         """###################################
@@ -63,24 +61,22 @@ class CreateForm:
         self.ras_preview_window = await self.ctx.send('Preview:\n', embed=self.new_ras_session_embed)
 
         try:
-            retry = True
-            while retry is True:
+            while True:
                 response = await self.bot.wait_for('message', timeout=self.timeout, check=self.message_check)
                 if RGServices.word_check(response.content, 'cancel'):
                     await RGEmbeds.cancel_embed(self.create_embed, self.create_ras_window, self.ras_preview_window,
-                                            title='Create RAS :warning:',
-                                            text='This create RAS sessions was cancelled, use the create command'
-                                                 ' again to start another session.')
-                    return self.CANCEL
+                                                title='Create RAS :warning:',
+                                                text='This create RAS sessions was cancelled, use the create command'
+                                                     ' again to start another session.')
+                    return Status.CANCEL
                 elif len(response.channel_mentions) > 0:
                     if response.channel_mentions[0] in self.ctx.message.guild.channels:
                         channel = self.bot.get_channel(response.channel_mentions[0].id)
                         if channel is not None:
                             self.new_ras_session.channel = channel
                             self.new_ras_session.guild = channel.guild
-                            retry = False
                             self.current_step = self.current_step + 1
-                            return self.SUCCESS
+                            return Status.SUCCESS
                         else:
                             await self.ctx.send('Unable to verify channel')
                 else:
@@ -89,10 +85,10 @@ class CreateForm:
         except asyncio.TimeoutError:
 
             await RGEmbeds.timeout_embed(self.create_embed, self.create_ras_window, self.ras_preview_window,
-                                     title='Create RAS :octagonal_sign:',
-                                     text='This Create RAS session has timed out, please use the \'c!create\' command '
-                                          'again ')
-            return self.TIMEOUT
+                                         title='Create RAS :octagonal_sign:',
+                                         text='This Create RAS session has timed out, please use the \'c!create\' command '
+                                              'again ')
+            return Status.TIMEOUT
 
     async def get_title_desc(self):
         """###################################
@@ -117,26 +113,26 @@ class CreateForm:
                 response = await self.bot.wait_for('message', timeout=self.timeout, check=self.message_check)
                 if RGServices().word_check(response.content, 'cancel'):
                     await RGEmbeds.cancel_embed(self.create_embed, self.create_ras_window, self.ras_preview_window,
-                                            title='Create RAS :warning:',
-                                            text='This create RAS sessions was cancelled, use the create command'
-                                                 ' again to start another session.')
-                    return self.CANCEL
+                                                title='Create RAS :warning:',
+                                                text='This create RAS sessions was cancelled, use the create command'
+                                                     ' again to start another session.')
+                    return Status.CANCEL
                 elif RGServices().verify_title_desc(response.content):
                     retry = False
                     items = response.content.split('|')
                     self.new_ras_session_embed.title = items[0].strip()
                     self.new_ras_session_embed.description = items[1].strip()
                     await self.ras_preview_window.edit(embed=self.new_ras_session_embed)
-                    return self.SUCCESS
+                    return Status.SUCCESS
                 else:
                     await self.ctx.send('Invalid format detected, please look at example above.')
 
         except asyncio.TimeoutError:
             await RGEmbeds.timeout_embed(self.create_embed, self.create_ras_window, self.ras_preview_window,
-                                     title='Create RAS :octagonal_sign:',
-                                     text='This Create RAS session has timed out, please use the \'c!create\' command '
-                                          'again ')
-            return self.TIMEOUT
+                                         title='Create RAS :octagonal_sign:',
+                                         text='This Create RAS session has timed out, please use the \'c!create\' command '
+                                              'again ')
+            return Status.TIMEOUT
 
     async def get_emote_role(self):
         """###################################
@@ -163,10 +159,10 @@ class CreateForm:
                 response = await self.bot.wait_for('message', timeout=self.timeout, check=self.message_check)
                 if RGServices().word_check(response.content, 'cancel'):  # Check for 'cancel'
                     await RGEmbeds.cancel_embed(self.create_embed, self.create_ras_window, self.ras_preview_window,
-                                            title='Create RAS :warning:',
-                                            text='This create RAS sessions was cancelled, use the create command'
-                                                 ' again to start another session.')
-                    return self.CANCEL
+                                                title='Create RAS :warning:',
+                                                text='This create RAS sessions was cancelled, use the create command'
+                                                     ' again to start another session.')
+                    return Status.CANCEL
                 elif RGServices().word_check(response.content, 'del'):
                     # Get first argument after delete
                     arg = response.content.strip(' ').split(' ')
@@ -201,7 +197,7 @@ class CreateForm:
                     self.new_ras_session_embed.remove_field(0)
                     # Update preview window
                     await self.ras_preview_window.edit(embed=self.new_ras_session_embed)
-                    return self.SUCCESS
+                    return Status.SUCCESS
                 else:
                     # Make sure role mention is detected and get first one
                     if len(response.role_mentions) > 0:
@@ -258,10 +254,10 @@ class CreateForm:
                     #     await self.ctx.send('ERROR: Invalid format detected, please look at example above.')
         except asyncio.TimeoutError:
             await RGEmbeds.timeout_embed(self.create_embed, self.create_ras_window, self.ras_preview_window,
-                                     title='Create RAS :octagonal_sign:',
-                                     text='This Create RAS session has timed out, please use the \'c!create\' command '
-                                          'again ')
-            return self.TIMEOUT
+                                         title='Create RAS :octagonal_sign:',
+                                         text='This Create RAS session has timed out, please use the \'c!create\' command '
+                                              'again ')
+            return Status.TIMEOUT
 
     async def get_unique_flag(self):
         """############################################
@@ -284,11 +280,12 @@ class CreateForm:
                 response = await self.bot.wait_for('message', timeout=self.timeout, check=self.message_check)
                 if RGServices().word_check(response.content, 'cancel'):
                     await RGEmbeds.cancel_embed(self.create_embed, self.create_ras_window, self.ras_preview_window,
-                                            title='Create RAS :warning:',
-                                            text='This create RAS sessions was cancelled, use the create command'
-                                                 ' again to start another session.')
-                    return self.CANCEL
-                elif RGServices().word_check(response.content, 'yes') or RGServices().word_check(response.content, 'no'):
+                                                title='Create RAS :warning:',
+                                                text='This create RAS sessions was cancelled, use the create command'
+                                                     ' again to start another session.')
+                    return Status.CANCEL
+                elif RGServices().word_check(response.content, 'yes') or RGServices().word_check(response.content,
+                                                                                                 'no'):
                     retry = False
                     if RGServices().word_check(response.content, 'yes'):
                         self.new_ras_session.unique = True
@@ -297,16 +294,16 @@ class CreateForm:
                         self.new_ras_session.unique = False
                         self.new_ras_session_embed.set_footer(text=f'Unique={False}')
                     await self.ras_preview_window.edit(embed=self.new_ras_session_embed)
-                    return self.SUCCESS
+                    return Status.SUCCESS
                 else:
                     await self.ctx.send('Invalid format detected, please look at example above.')
 
         except asyncio.TimeoutError:
             await RGEmbeds.timeout_embed(self.create_embed, self.create_ras_window, self.ras_preview_window,
-                                     title='Create RAS :octagonal_sign:',
-                                     text='This Create RAS session has timed out, please use the \'c!create\' command '
-                                          'again ')
-            return self.TIMEOUT
+                                         title='Create RAS :octagonal_sign:',
+                                         text='This Create RAS session has timed out, please use the \'c!create\' command '
+                                              'again ')
+            return Status.TIMEOUT
 
     async def get_color(self):
         """############################################
@@ -336,10 +333,10 @@ class CreateForm:
                 response = await self.bot.wait_for('message', timeout=self.timeout, check=self.message_check)
                 if RGServices().word_check(response.content, 'cancel'):  # Check for 'cancel'
                     await RGEmbeds.cancel_embed(self.create_embed, self.create_ras_window, self.ras_preview_window,
-                                            title='Create RAS :warning:',
-                                            text='This create RAS sessions was cancelled, use the create command'
-                                                 ' again to start another session.')
-                    return self.CANCEL
+                                                title='Create RAS :warning:',
+                                                text='This create RAS sessions was cancelled, use the create command'
+                                                     ' again to start another session.')
+                    return Status.CANCEL
                 elif RGServices().word_check(response.content, 'done'):  # Check for 'done'
                     retry = False
 
@@ -350,7 +347,7 @@ class CreateForm:
                     self.new_ras_session_embed.remove_field(0)
                     # Update preview window
                     await self.ras_preview_window.edit(embed=self.new_ras_session_embed)
-                    return self.SUCCESS
+                    return Status.SUCCESS
                 else:
                     new_color = RGServices().color_atlas(response)
                     if new_color is not None:
@@ -363,10 +360,10 @@ class CreateForm:
 
         except asyncio.TimeoutError:
             await RGEmbeds.timeout_embed(self.create_embed, self.create_ras_window, self.ras_preview_window,
-                                     title='Create RAS :octagonal_sign:',
-                                     text='This Create RAS session has timed out, please use the \'c!create\' command '
-                                          'again ')
-            return self.TIMEOUT
+                                         title='Create RAS :octagonal_sign:',
+                                         text='This Create RAS session has timed out, please use the \'c!create\' command '
+                                              'again ')
+            return Status.TIMEOUT
 
     async def publish(self):
         """############################################
@@ -387,10 +384,10 @@ class CreateForm:
                 response = await self.bot.wait_for('message', timeout=self.timeout, check=self.message_check)
                 if RGServices().word_check(response.content, 'cancel'):  # Listen for 'cancel'
                     await RGEmbeds.cancel_embed(self.create_embed, self.create_ras_window, self.ras_preview_window,
-                                            title='Create RAS :warning:',
-                                            text='This create RAS sessions was cancelled, use the create command'
-                                                 ' again to start another session.')
-                    return self.CANCEL
+                                                title='Create RAS :warning:',
+                                                text='This create RAS sessions was cancelled, use the create command'
+                                                     ' again to start another session.')
+                    return Status.CANCEL
                 elif RGServices().word_check(response.content, 'publish'):  # Listen for 'publish'
                     retry = False
                     # Publish to requested channel
@@ -405,7 +402,6 @@ class CreateForm:
 
                     # Delete preview window
                     await self.ras_preview_window.delete()
-                    # TODO: Add list of what options are in confirmation
                     # Update create RAS form with confirmation
                     self.create_embed.title = 'Create RAS  -  :white_check_mark:'
                     self.create_embed.description = f'CONFIRMATION - The new RAS has been posted in ' \
@@ -417,18 +413,19 @@ class CreateForm:
                     await self.ctx.send('Invalid format detected, please look at example above.')
         except asyncio.TimeoutError:
             await RGEmbeds.timeout_embed(self.create_embed, self.create_ras_window, self.ras_preview_window,
-                                     title='Create RAS :octagonal_sign:',
-                                     text='This Create RAS session has timed out, please use the \'c!create\' command '
-                                          'again ')
-            return self.TIMEOUT
+                                         title='Create RAS :octagonal_sign:',
+                                         text='This Create RAS session has timed out, please use the \'c!create\' command '
+                                              'again ')
+            return Status.TIMEOUT
 
         # Save new RAS to memory
         self.ras_sessions.append(self.new_ras_session)
 
         # End routine
-        return self.SUCCESS
+        return Status.SUCCESS
 
     def message_check(self, message):
         is_author = message.author == self.ctx.message.author
+        is_correct_guild = message.guild == self.ctx.message.guild
         in_correct_channel = message.channel == self.ctx.message.channel
-        return is_author and in_correct_channel
+        return is_author and in_correct_channel and is_correct_guild
