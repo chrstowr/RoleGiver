@@ -53,9 +53,10 @@ class EditForm:
             while True:
 
                 # Update windows with Main Menu
-                self.edit_embed.description = f'Hello, {self.ctx.message.author.name}! Please choose what component you would' \
-                                              f' like to edit:'
+                self.edit_embed.description = f'Hello, {self.ctx.message.author.name}! ' \
+                                              f'Please choose what component you would like to edit:'
 
+                # Generate option's list
                 option_list = "```"
                 count = 0
                 for step in self.form_queue:
@@ -105,13 +106,13 @@ class EditForm:
                     await self.preview_window.delete()
 
                     # Send new ones
-                    edit_window = await self.ctx.send(embed=self.edit_embed)
+                    self.edit_window = await self.ctx.send(embed=self.edit_embed)
                     self.preview_window = await self.ctx.send('Preview:\n', embed=self.preview_window_embed)
                     for reaction in self.preview_window_reactions:
                         await self.preview_window.add_reaction(reaction.emoji)
 
                 elif RGServices().word_check(response.content, 'done'):
-                    # show publish form
+
                     result = await self.publish()
                     if result is not Status.CANCEL:
                         return result
@@ -521,6 +522,7 @@ class EditForm:
                     await old_preview_window.delete()
                     return Status.CANCEL
                 elif RGServices().word_check(response.content, 'publish'):
+                    # TODO: Add change log to confirmation
                     # Apply following changes:
                     # new embed
                     await self.ras_to_edit.message.edit(embed=self.preview_window_embed)
